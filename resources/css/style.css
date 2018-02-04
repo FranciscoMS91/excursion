@@ -1,0 +1,31 @@
+h1 {
+  font-family: Verdana;
+  font-weight: normal;
+  font-size: 50px;
+  color: white;
+  text-align: center;
+}
+
+.cta {
+    color: Aquamarine;
+    font-size: 16px;
+}
+
+body{
+  font-family: Verdana, sans-serif;
+  text-align: center;
+  background-color: black;
+  color: white;
+}
+body {
+    display: block;
+    margin: 8px;}
+
+video{
+  object-fit: contain;
+}
+
+p {
+    color: Gray;
+    font-size: 21px;
+}
