@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Planificador de viajes comerciales · Península Ibérica</title>
+  <meta name="description"
+    content="Planifica viajes de negocio de forma gráfica: clientes y prospectos sobre el mapa, rutas optimizadas y máximo número de visitas por viaje." />
+  <link rel="stylesheet" href="vendor/leaflet.css" />
+  <link rel="stylesheet" href="css/planner.css" />
+</head>
+
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo">◎</span>
+      <div>
+        <h1>Planificador de viajes comerciales</h1>
+        <p>Optimiza cada desplazamiento por la península ibérica</p>
+      </div>
+    </div>
+    <div class="top-status" id="top-status"></div>
+  </header>
+
+  <main class="layout">
+    <!-- ------------------------------------------------ Panel izquierdo -->
+    <aside class="sidebar">
+      <nav class="tabs">
+        <button class="tab active" data-tab="viaje">Viaje</button>
+        <button class="tab" data-tab="cartera">Cartera</button>
+        <button class="tab" data-tab="datos">Datos</button>
+      </nav>
+
+      <section class="tab-panel active" id="tab-viaje">
+        <div class="group">
+          <h2>Recorrido</h2>
+          <label class="field full">
+            <span>Mi ubicación / punto de partida</span>
+            <div class="row">
+              <input id="origin" type="text" placeholder="Ej. Calle Serrano 41, Madrid" />
+              <button class="mini" id="btn-gps" title="Usar mi ubicación actual">📍</button>
+            </div>
+            <small class="hint" id="origin-status"></small>
+          </label>
+          <label class="field full">
+            <span>Destino</span>
+            <input id="dest" type="text" placeholder="Ej. Valencia" />
+            <small class="hint" id="dest-status"></small>
+          </label>
+
+          <div class="segmented" id="mode">
+            <button data-mode="destino" class="active">Radio en destino</button>
+            <button data-mode="corredor">Corredor del trayecto</button>
+          </div>
+          <label class="field full" id="radius-field">
+            <span>Radio alrededor del destino: <b id="radius-val">60</b> km</span>
+            <input id="radius" type="range" min="5" max="300" step="5" value="60" />
+          </label>
+          <label class="field full hidden" id="corridor-field">
+            <span>Ancho del corredor: <b id="corridor-val">40</b> km a cada lado</span>
+            <input id="corridor" type="range" min="5" max="150" step="5" value="40" />
+          </label>
+        </div>
+
+        <div class="group">
+          <h2>Calendario</h2>
+          <div class="grid2">
+            <label class="field"><span>Primer día</span><input id="startDate" type="date" /></label>
+            <label class="field"><span>Días de viaje</span><input id="days" type="number" min="1" max="14" value="3" /></label>
+            <label class="field"><span>Inicio jornada</span><input id="dayStart" type="time" value="08:30" /></label>
+            <label class="field"><span>Fin jornada</span><input id="dayEnd" type="time" value="18:30" /></label>
+            <label class="field"><span>Duración visita (min)</span><input id="defaultVisitMin" type="number" min="15" max="240" step="5" value="60" /></label>
+            <label class="field"><span>Comida (min)</span><input id="lunchMin" type="number" min="0" max="180" step="15" value="60" /></label>
+            <label class="field"><span>Hora de comer</span><input id="lunchStart" type="time" value="14:00" /></label>
+          </div>
+          <label class="field check"><input id="returnToOrigin" type="checkbox" checked /><span>Volver al punto de partida el último día</span></label>
+          <label class="field check"><input id="destIsStop" type="checkbox" checked /><span>Pasar obligatoriamente por el destino</span></label>
+        </div>
+
+        <div class="group">
+          <h2>A quién visitar</h2>
+          <div class="chips">
+            <label class="chip"><input type="checkbox" class="f-type" value="cliente" checked /><span>Clientes</span></label>
+            <label class="chip"><input type="checkbox" class="f-type" value="prospecto" checked /><span>Prospectos</span></label>
+          </div>
+          <div class="grid2">
+            <label class="field"><span>Prioridad mínima</span>
+              <select id="filterMinPriority">
+                <option value="1">Todas</option>
+                <option value="2">Media o alta</option>
+                <option value="3">Sólo alta</option>
+              </select>
+            </label>
+            <label class="field"><span>Sin visitar desde (días)</span><input id="filterNotVisitedDays" type="number" min="0" step="30" value="0" /></label>
+            <label class="field"><span>Sector contiene</span><input id="filterIndustry" type="text" placeholder="todos" /></label>
+            <label class="field"><span>Etiqueta contiene</span><input id="filterTag" type="text" placeholder="todas" /></label>
+          </div>
+        </div>
+
+        <details class="group">
+          <summary><h2>Criterio de priorización</h2></summary>
+          <label class="field full"><span>Peso de la prioridad: <b id="wPriority-val">1</b></span>
+            <input id="wPriority" type="range" min="0" max="3" step="0.1" value="1" /></label>
+          <label class="field full"><span>Peso del valor potencial: <b id="wValue-val">1</b></span>
+            <input id="wValue" type="range" min="0" max="3" step="0.1" value="1" /></label>
+          <label class="field full"><span>Peso del tiempo sin visitar: <b id="wRecency-val">0.6</b></span>
+            <input id="wRecency" type="range" min="0" max="3" step="0.1" value="0.6" /></label>
+          <label class="field full"><span>Enfoque: <b id="prospectBias-val">equilibrado</b></span>
+            <input id="prospectBias" type="range" min="-1" max="1" step="0.1" value="0" />
+            <small class="hint">A la izquierda prioriza fidelizar clientes; a la derecha, captar prospectos.</small>
+          </label>
+          <label class="field full"><span>Máx. paradas candidatas a evaluar</span>
+            <input id="maxCandidates" type="number" min="10" max="95" step="5" value="80" />
+            <small class="hint">Más candidatas = mejor plan pero cálculo más lento (límite de OSRM: 95).</small>
+          </label>
+        </details>
+
+        <div class="actions">
+          <button class="btn primary big" id="btn-optimize">Optimizar viaje</button>
+          <div class="cand-summary" id="cand-summary"></div>
+        </div>
+      </section>
+
+      <section class="tab-panel" id="tab-cartera">
+        <div class="group">
+          <div class="row">
+            <input id="client-search" type="search" placeholder="Buscar por nombre, ciudad, sector…" />
+            <button class="btn" id="btn-new-client">+ Nuevo</button>
+          </div>
+        </div>
+        <div id="client-list" class="client-list"></div>
+      </section>
+
+      <section class="tab-panel" id="tab-datos">
+        <div class="group">
+          <h2>Importar cartera</h2>
+          <p class="muted small">CSV, TSV o Excel. Reconoce automáticamente las columnas de exportaciones de
+            Apollo.io y de CRMs en español (empresa, dirección, ciudad, teléfono…).</p>
+          <input type="file" id="file-input" accept=".csv,.tsv,.txt,.xlsx,.xlsm,.xls" hidden />
+          <button class="btn primary" id="btn-import">Elegir fichero…</button>
+          <a class="link-sample" href="ejemplo-clientes.csv" download>Descargar plantilla CSV</a>
+        </div>
+
+        <div class="group">
+          <h2>Coordenadas</h2>
+          <p class="muted small">Las direcciones se convierten en coordenadas con Nominatim (OpenStreetMap),
+            a 1 consulta por segundo. Los resultados quedan en caché.</p>
+          <button class="btn" id="btn-geocode">Geocodificar pendientes</button>
+          <div class="progress hidden" id="geo-progress"><div class="bar"></div><span></span></div>
+        </div>
+
+        <div class="group">
+          <h2>Cálculo de rutas</h2>
+          <label class="field check"><input id="useOsrm" type="checkbox" checked /><span>Usar tiempos reales de carretera (OSRM)</span></label>
+          <div class="grid2">
+            <label class="field"><span>Velocidad media (km/h)</span><input id="speedKmh" type="number" min="30" max="130" step="5" value="80" /></label>
+            <label class="field"><span>Factor de desvío</span><input id="detour" type="number" min="1" max="2" step="0.05" value="1.25" /></label>
+          </div>
+          <small class="hint">Se usan si OSRM no está disponible (sin conexión o demasiadas paradas).</small>
+        </div>
+
+        <div class="group">
+          <h2>Datos guardados</h2>
+          <p class="muted small" id="storage-info"></p>
+          <div class="row wrap">
+            <button class="btn" id="btn-demo">Cargar ejemplo</button>
+            <button class="btn" id="btn-export-clients">Exportar cartera</button>
+            <button class="btn danger" id="btn-clear-clients">Vaciar cartera</button>
+          </div>
+        </div>
+      </section>
+    </aside>
+
+    <!-- ------------------------------------------------------- Mapa ----- -->
+    <section class="map-wrap">
+      <div id="map"></div>
+      <div class="legend">
+        <span><i class="sw cliente"></i> Cliente</span>
+        <span><i class="sw prospecto"></i> Prospecto</span>
+        <span><i class="sw route"></i> Ruta del día</span>
+      </div>
+    </section>
+
+    <!-- -------------------------------------------------- Itinerario ---- -->
+    <aside class="itin-wrap">
+      <header class="itin-head">
+        <h2>Itinerario</h2>
+        <div class="row">
+          <button class="mini" id="btn-export-csv" title="Exportar a CSV">CSV</button>
+          <button class="mini" id="btn-export-ics" title="Exportar al calendario">Calendario</button>
+          <button class="mini" id="btn-print" title="Imprimir / PDF">Imprimir</button>
+        </div>
+      </header>
+      <div id="itinerary" class="itinerary"></div>
+    </aside>
+  </main>
+
+  <div id="modal" class="modal-backdrop"></div>
+  <div id="toast" class="toast"></div>
+
+  <!-- Librerías incluidas en el repositorio: la app funciona sin CDN. -->
+  <script src="vendor/leaflet.js"></script>
+  <script src="vendor/xlsx.full.min.js"></script>
+  <script src="js/util.js"></script>
+  <script src="js/store.js"></script>
+  <script src="js/csv.js"></script>
+  <script src="js/geocode.js"></script>
+  <script src="js/routing.js"></script>
+  <script src="js/optimize.js"></script>
+  <script src="js/map.js"></script>
+  <script src="js/itinerary.js"></script>
+  <script src="js/clients.js"></script>
+  <script src="js/demo-data.js"></script>
+  <script src="js/app.js"></script>
+</body>
+
+</html>
