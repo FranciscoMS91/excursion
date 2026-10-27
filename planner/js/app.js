@@ -64,6 +64,7 @@
     bindInput('filterIndustry', 'filterIndustry');
     bindInput('filterTag', 'filterTag');
     bindInput('maxCandidates', 'maxCandidates', 'number');
+    bindInput('apptNearbyKm', 'apptNearbyKm', 'number');
     bindInput('useOsrm', 'useOsrm', 'check');
     bindInput('speedKmh', 'speedKmh', 'number');
     bindInput('detour', 'detour', 'number');
@@ -75,6 +76,7 @@
     bindInput('prospectBias', 'prospectBias', 'number');
 
     rangeLabel('radius');
+    rangeLabel('apptNearbyKm');
     rangeLabel('corridor');
     rangeLabel('wPriority');
     rangeLabel('wValue');
@@ -222,6 +224,7 @@
   function refreshAll() {
     BTP.map.renderClients(BTP.store.state.clients, plannedIds());
     BTP.clients.renderList($('#client-list'), $('#client-search').value);
+    renderAppointments();
     drawZone();
     updateStorageInfo();
   }
@@ -233,20 +236,74 @@
       Object.keys(BTP.store.state.geocache).length + ' direcciones en caché. Todo se guarda en este navegador.';
   }
 
+  function reschedule(seq) {
+    topStatus('Recalculando…');
+    return BTP.optimize.rescheduleSequence(plan, seq).then(function (p) {
+      plan = p;
+      topStatus('');
+      renderItinerary();
+      BTP.map.renderPlan(plan, BTP.itinerary.state.activeDay);
+      BTP.map.renderClients(BTP.store.state.clients, plannedIds());
+    });
+  }
+
   function renderItinerary() {
     BTP.itinerary.render(plan, $('#itinerary'), function (evt) {
-      if (evt && evt.type === 'reorder') {
-        topStatus('Recalculando…');
-        BTP.optimize.rescheduleSequence(plan, evt.seq).then(function (p) {
-          plan = p;
-          topStatus('');
-          renderItinerary();
-          BTP.map.renderPlan(plan, BTP.itinerary.state.activeDay);
-          BTP.map.renderClients(BTP.store.state.clients, plannedIds());
+      if (!evt) { optimize(); return; }
+      if (evt.type === 'reorder') {
+        reschedule(evt.seq);
+      } else if (evt.type === 'add') {
+        var seq = BTP.optimize.addVisit(plan, evt.node);
+        if (!seq) { toast('Esa visita ya no cabe sin tocar la cita.'); return; }
+        reschedule(seq).then(function () {
+          toast(plan.nodes[evt.node].name + ' añadida al itinerario');
         });
+      } else if (evt.type === 'edit') {
+        BTP.clients.openEditor(evt.id);
       } else {
         optimize();
       }
+    });
+  }
+
+  /** Listado de citas pactadas en el panel de control. */
+  function renderAppointments() {
+    var box = $('#appt-list');
+    box.innerHTML = '';
+    var withAppt = BTP.store.state.clients.filter(BTP.store.hasAppointment)
+      .sort(function (a, b) {
+        return (a.apptDate || '9999').localeCompare(b.apptDate || '9999') ||
+          a.apptTime.localeCompare(b.apptTime);
+      });
+
+    if (!withAppt.length) {
+      box.appendChild(U.el('div', {
+        class: 'muted small',
+        text: 'Ninguna. Abre un cliente en la pestaña Cartera y rellena «Cita pactada».'
+      }));
+      return;
+    }
+
+    withAppt.forEach(function (c) {
+      box.appendChild(U.el('div', { class: 'appt-row' }, [
+        U.el('div', {}, [
+          U.el('div', { class: 'appt-when', text: (c.apptDate ? U.fmtDateES(c.apptDate) + ' · ' : 'Hora fija · ') + c.apptTime }),
+          U.el('div', { class: 'appt-who', text: c.name + (c.city ? ' · ' + c.city : '') }),
+          c.lat == null ? U.el('div', { class: 'cr-warn', text: 'sin coordenadas: geocodifica antes de optimizar' }) : null
+        ]),
+        U.el('div', { class: 'row' }, [
+          U.el('button', { class: 'mini', text: '✎', title: 'Editar', onclick: function () { BTP.clients.openEditor(c.id); } }),
+          U.el('button', {
+            class: 'mini danger', text: '✕', title: 'Quitar la hora pactada',
+            onclick: function () {
+              c.apptDate = ''; c.apptTime = '';
+              BTP.store.saveClients();
+              refreshAll();
+              toast('Cita eliminada de ' + c.name);
+            }
+          })
+        ])
+      ]));
     });
   }
 
@@ -298,6 +355,8 @@
 
   function showCandidateSummary(sel) {
     var parts = [sel.enZona + ' en la zona'];
+    if (sel.stats.citas) parts.push(sel.stats.citas + ' con cita pactada');
+    if (sel.stats.cercaDeCita) parts.push(sel.stats.cercaDeCita + ' por cercanía a una cita');
     if (sel.recortados) parts.push(sel.recortados + ' descartadas por el límite de candidatas');
     if (sel.stats.sinCoords) parts.push(sel.stats.sinCoords + ' sin coordenadas');
     if (sel.stats.filtrados) parts.push(sel.stats.filtrados + ' excluidas por filtros');

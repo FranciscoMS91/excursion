@@ -39,7 +39,9 @@ window.BTP = window.BTP || {};
         el('div', { class: 'cr-main' }, [
           el('div', { class: 'cr-name' }, [
             el('span', { text: c.name }),
-            c.pinned ? el('span', { class: 'tag pin', text: 'fija' }) : null
+            BTP.store.hasAppointment(c)
+              ? el('span', { class: 'tag appt', text: '🔒 ' + c.apptTime })
+              : (c.pinned ? el('span', { class: 'tag pin', text: 'fija' }) : null)
           ]),
           el('div', { class: 'cr-sub', text: [c.city, c.province, c.industry].filter(Boolean).join(' · ') }),
           c.lat == null ? el('div', { class: 'cr-warn', text: 'sin coordenadas' }) : null
@@ -111,6 +113,8 @@ window.BTP = window.BTP || {};
     { k: 'value', l: 'Valor potencial (€)', t: 'number' },
     { k: 'lastVisit', l: 'Última visita', t: 'date' },
     { k: 'duration', l: 'Duración visita (min)', t: 'number' },
+    { k: 'apptDate', l: 'Cita pactada · fecha', t: 'date' },
+    { k: 'apptTime', l: 'Cita pactada · hora', t: 'time' },
     { k: 'tagsText', l: 'Etiquetas (separadas por ;)' },
     { k: 'lat', l: 'Latitud', t: 'number' },
     { k: 'lng', l: 'Longitud', t: 'number' },
@@ -144,6 +148,8 @@ window.BTP = window.BTP || {};
         el('span', { text: f.l }), input
       ]));
     });
+
+    form.appendChild(el('p', { class: 'hint full', text: 'Con una hora pactada, la visita queda clavada a esa hora y el resto de la agenda se organiza a su alrededor. Si dejas la fecha en blanco, se respeta la hora el día que toque.' }));
 
     var pinLabel = el('label', { class: 'field check full' }, [
       (function () {

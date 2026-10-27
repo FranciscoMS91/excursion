@@ -49,11 +49,27 @@ window.BTP = window.BTP || {};
     clients.forEach(function (c) { if (c.value > maxValue) maxValue = c.value; });
 
     var inArea = [];
-    var stats = { total: clients.length, sinCoords: 0, filtrados: 0, fuera: 0 };
+    var stats = { total: clients.length, sinCoords: 0, filtrados: 0, fuera: 0, citas: 0, cercaDeCita: 0 };
+
+    // El entorno de una cita pactada entra siempre: si hay reunión en Zaragoza,
+    // interesan las empresas de Zaragoza aunque queden fuera del corredor.
+    var nearKm = Number(s.apptNearbyKm) || 35;
+    var apptPoints = clients.filter(function (c) {
+      return BTP.store.hasAppointment(c) && c.lat != null && c.lng != null;
+    });
+    function nearAppointment(c) {
+      for (var i = 0; i < apptPoints.length; i++) {
+        if (U.haversine(c, apptPoints[i]) <= nearKm) return true;
+      }
+      return false;
+    }
 
     clients.forEach(function (c) {
       if (c.lat == null || c.lng == null) { stats.sinCoords++; return; }
-      if (!passesFilters(c, s)) { stats.filtrados++; return; }
+      // Una cita pactada es un compromiso: entra aunque los filtros o la zona la dejen fuera.
+      var forced = BTP.store.hasAppointment(c);
+      if (forced) stats.citas++;
+      if (!forced && !passesFilters(c, s)) { stats.filtrados++; return; }
       var dDest = dest ? U.haversine(c, dest) : 0;
       var dOrig = origin ? U.haversine(c, origin) : 0;
       var inside;
@@ -62,17 +78,26 @@ window.BTP = window.BTP || {};
       } else {
         inside = dDest <= Number(s.radiusKm);
       }
-      if (!inside) { stats.fuera++; return; }
+      var nearAppt = false;
+      if (!inside && !forced) {
+        nearAppt = apptPoints.length > 0 && nearAppointment(c);
+        if (!nearAppt) { stats.fuera++; return; }
+        stats.cercaDeCita++;
+      }
       inArea.push({
         client: c,
         score: scoreOf(c, s, maxValue),
         distDest: dDest,
-        distOrigin: dOrig
+        distOrigin: dOrig,
+        forced: forced,
+        nearAppt: nearAppt
       });
     });
 
-    // Se prioriza puntuación alta y cercanía al destino para el recorte.
+    // Primero las citas, luego su entorno; el resto por puntuación y cercanía al destino.
+    function rank(x) { return x.forced ? 0 : (x.nearAppt ? 1 : 2); }
     inArea.sort(function (a, b) {
+      if (rank(a) !== rank(b)) return rank(a) - rank(b);
       var ra = a.score / (1 + a.distDest / 60);
       var rb = b.score / (1 + b.distDest / 60);
       return rb - ra;
@@ -108,13 +133,27 @@ window.BTP = window.BTP || {};
     return nodes;
   }
 
+  /** Cita pactada de un nodo, o null. dayIndex es relativo al primer día. */
+  function apptOf(node, s) {
+    var c = node && node.client;
+    if (!c || !c.apptTime) return null;
+    return {
+      start: U.parseHM(c.apptTime),
+      dayIndex: c.apptDate ? U.daysBetween(s.startDate, c.apptDate) : null,
+      date: c.apptDate || ''
+    };
+  }
+
   function makeCtx(nodes, matrix, s) {
+    var appts = nodes.map(function (n) { return apptOf(n, s); });
     return {
       nodes: nodes,
       matrix: matrix,
       settings: s,
       visitMin: function (i) { return nodes[i].visitMin || 0; },
-      score: function (i) { return nodes[i].score || 0; }
+      score: function (i) { return nodes[i].score || 0; },
+      appt: function (i) { return appts[i]; },
+      anyAppt: appts.some(function (a) { return !!a; })
     };
   }
 
@@ -129,7 +168,7 @@ window.BTP = window.BTP || {};
     var lunchMin = Number(s.lunchMin) || 0;
     var maxDays = Math.max(1, Number(s.days) || 1);
 
-    var days = [], dropped = [];
+    var days = [], dropped = [], conflicts = [];
     var d = 0, cur = 0, t = dayStart, lunchDone = false, outOfDays = false;
     var day = newDay(0, 0);
 
@@ -137,7 +176,7 @@ window.BTP = window.BTP || {};
       return {
         index: i, date: U.addDays(s.startDate, i), startMin: dayStart, endMin: dayStart,
         items: [], driveMin: 0, visitMin: 0, km: 0, visits: 0,
-        fromNode: fromNode, toNode: fromNode, geometry: null, late: false
+        fromNode: fromNode, toNode: fromNode, geometry: null, late: false, hasAppt: false
       };
     }
 
@@ -147,41 +186,136 @@ window.BTP = window.BTP || {};
       days.push(day);
     }
 
+    function pushDrive(node) {
+      var drive = dur[cur][node], km = dist[cur][node];
+      if (drive > 0.01) {
+        day.items.push({ type: 'trayecto', from: cur, to: node, startMin: t, endMin: t + drive, min: drive, km: km });
+        day.driveMin += drive;
+        day.km += km;
+      }
+      return t + drive;
+    }
+
+    function recordVisit(node, startMin, fixed) {
+      var vis = ctx.visitMin(node);
+      day.items.push({ type: 'visita', node: node, startMin: startMin, endMin: startMin + vis, min: vis, fixed: !!fixed });
+      day.visitMin += vis;
+      if (ctx.nodes[node].kind === 'cliente') day.visits++;
+      t = startMin + vis;
+      cur = node;
+    }
+
+    /* Índice de la próxima cita a partir de cada posición de la secuencia. */
+    var nextAppt = new Array(seq.length);
+    for (var z = seq.length - 1, nxt = -1; z >= 0; z--) {
+      nextAppt[z] = nxt;
+      if (ctx.appt(seq[z])) nxt = z;
+    }
+
+    /**
+     * Salta hasta el día de la cita. Si saliendo por la mañana no se llega a
+     * tiempo, el desplazamiento se hace la tarde anterior y se pernocta cerca.
+     */
+    function advanceToApptDay(apptNode, ap, target) {
+      while (d < target) {
+        if (d === target - 1 && cur !== apptNode && dayStart + dur[cur][apptNode] > ap.start + 0.5) {
+          var tk = dur[cur][apptNode], tkm = dist[cur][apptNode];
+          day.items.push({
+            type: 'traslado', from: cur, to: apptNode,
+            startMin: t, endMin: t + tk, min: tk, km: tkm
+          });
+          day.driveMin += tk;
+          day.km += tkm;
+          t += tk;
+          cur = apptNode;
+        }
+        closeDay();
+        d++;
+        day = newDay(d, cur);
+        t = dayStart;
+        lunchDone = false;
+      }
+    }
+
+    /**
+     * ¿Esta parada cabe en el hueco de la mañana anterior a la próxima cita?
+     * Si es así se adelanta el día, en vez de gastarla en la jornada de hoy.
+     */
+    function fitsMorningGap(node, k) {
+      var idx = nextAppt[k];
+      if (idx < 0) return null;
+      var aNode = seq[idx], ap = ctx.appt(aNode);
+      if (ap.dayIndex === null || ap.dayIndex <= d || ap.dayIndex >= maxDays) return null;
+      // Sólo si se va a pernoctar junto a la cita: si no, la mañana no empieza allí.
+      if (dayStart + dur[cur][aNode] <= ap.start + 0.5) return null;
+      var total = dayStart + dur[aNode][node] + ctx.visitMin(node) + dur[node][aNode];
+      if (total > ap.start + 0.5) return null;
+      return { node: aNode, ap: ap, target: ap.dayIndex };
+    }
+
+    /* Una cita pactada manda: se viaja al día que toca y se espera si hace falta. */
+    function placeAppointment(node, ap) {
+      var target = ap.dayIndex === null ? d : ap.dayIndex;
+      if (target < 0 || target >= maxDays) {
+        conflicts.push({ node: node, type: 'fuera-de-rango', dayIndex: ap.dayIndex });
+        dropped.push(node);
+        return;
+      }
+      if (target < d) {
+        conflicts.push({ node: node, type: 'dia-pasado', dayIndex: ap.dayIndex });
+        dropped.push(node);
+        return;
+      }
+      advanceToApptDay(node, ap, target);
+
+      var arrive = pushDrive(node);
+      var hueco = ap.start - arrive;
+      if (hueco < -0.5) {
+        conflicts.push({ node: node, type: 'tarde', minutes: Math.round(-hueco) });
+      } else if (hueco > 0.5) {
+        var comida = 0;
+        if (!lunchDone && lunchMin > 0 && ap.start >= lunchAt && hueco >= lunchMin) {
+          comida = lunchMin;
+          day.items.push({ type: 'comida', startMin: arrive, endMin: arrive + comida, min: comida });
+          lunchDone = true;
+        }
+        if (hueco - comida > 0.5) {
+          day.items.push({ type: 'espera', startMin: arrive + comida, endMin: ap.start, min: hueco - comida });
+        }
+      }
+
+      t = Math.max(ap.start, arrive);
+      recordVisit(node, t, true);
+      day.hasAppt = true;
+      if (t > dayEnd) day.late = true;
+      outOfDays = false;   // tras la cita puede seguir cabiendo algo ese mismo día
+    }
+
     for (var k = 0; k < seq.length; k++) {
       var node = seq[k];
+      var ap = ctx.appt(node);
+
+      if (ap) { placeAppointment(node, ap); continue; }
       if (outOfDays) { dropped.push(node); continue; }
+
+      var gap = fitsMorningGap(node, k);
+      if (gap) advanceToApptDay(gap.node, gap.ap, gap.target);
 
       var placed = false;
       while (!placed) {
         var fresh = day.items.length === 0;
         var drive = dur[cur][node];
-        var km = dist[cur][node];
         var arrive = t + drive;
         var lunchHere = (lunchMin > 0 && !lunchDone && arrive >= lunchAt) ? lunchMin : 0;
-        var vis = ctx.visitMin(node);
-        var finish = arrive + lunchHere + vis;
+        var finish = arrive + lunchHere + ctx.visitMin(node);
 
         if (finish <= dayEnd) {
-          if (drive > 0.01) {
-            day.items.push({
-              type: 'trayecto', from: cur, to: node,
-              startMin: t, endMin: arrive, min: drive, km: km
-            });
-            day.driveMin += drive;
-            day.km += km;
-          }
+          pushDrive(node);
           if (lunchHere) {
             day.items.push({ type: 'comida', startMin: arrive, endMin: arrive + lunchHere, min: lunchHere });
             lunchDone = true;
           }
-          day.items.push({
-            type: 'visita', node: node,
-            startMin: arrive + lunchHere, endMin: finish, min: vis
-          });
-          day.visitMin += vis;
-          if (ctx.nodes[node].kind === 'cliente') day.visits++;
-          t = finish;
-          cur = node;
+          recordVisit(node, arrive + lunchHere, false);
           placed = true;
         } else if (fresh) {
           // No cabe ni con el día entero por delante: se descarta esta parada.
@@ -210,10 +344,7 @@ window.BTP = window.BTP || {};
         day = newDay(d, cur);
         t = dayStart;
       }
-      day.items.push({
-        type: 'regreso', from: cur, to: 0,
-        startMin: t, endMin: t + back, min: back, km: backKm
-      });
+      day.items.push({ type: 'regreso', from: cur, to: 0, startMin: t, endMin: t + back, min: back, km: backKm });
       day.driveMin += back;
       day.km += backKm;
       t += back;
@@ -229,7 +360,7 @@ window.BTP = window.BTP || {};
       totals.visitMin += dd.visitMin; totals.visits += dd.visits;
     });
 
-    return { days: days, dropped: dropped, totals: totals };
+    return { days: days, dropped: dropped, conflicts: conflicts, totals: totals };
   }
 
   /* --- 4. Optimización de la secuencia --------------------------------- */
@@ -266,18 +397,23 @@ window.BTP = window.BTP || {};
     return Math.max(0, perDay) * Math.max(1, Number(s.days) || 1);
   }
 
+  /* Las mejoras locales nunca cruzan una cita pactada: su orden es intocable. */
+
   function twoOpt(seq, ctx) {
     if (seq.length < 3) return seq;
     var best = seq.slice(), bestCost = tourCost(best, ctx), improved = true, guard = 0;
     while (improved && guard++ < 40) {
       improved = false;
+      var anchor = best.map(function (n) { return !!ctx.appt(n); });
       for (var i = 0; i < best.length - 1; i++) {
+        if (anchor[i]) continue;
         for (var j = i + 1; j < best.length; j++) {
+          if (anchor[j]) break;
           var cand = best.slice(0, i)
             .concat(best.slice(i, j + 1).reverse())
             .concat(best.slice(j + 1));
           var c = tourCost(cand, ctx);
-          if (c < bestCost - 0.01) { best = cand; bestCost = c; improved = true; }
+          if (c < bestCost - 0.01) { best = cand; bestCost = c; improved = true; anchor = best.map(function (n) { return !!ctx.appt(n); }); }
         }
       }
     }
@@ -289,20 +425,55 @@ window.BTP = window.BTP || {};
     var best = seq.slice(), bestCost = tourCost(best, ctx), improved = true, guard = 0;
     while (improved && guard++ < 20) {
       improved = false;
+      var pre = prefixAnchors(best, ctx);
       for (var len = 1; len <= 3 && len < best.length; len++) {
         for (var i = 0; i + len <= best.length; i++) {
+          if (pre[i + len] !== pre[i]) continue;          // el tramo contiene una cita
+          var region = pre[i];
           var seg = best.slice(i, i + len);
           var rest = best.slice(0, i).concat(best.slice(i + len));
+          var preR = prefixAnchors(rest, ctx);
           for (var p = 0; p <= rest.length; p++) {
-            if (p === i) continue;
+            if (p === i || preR[p] !== region) continue;  // sólo dentro del mismo tramo
             var cand = rest.slice(0, p).concat(seg, rest.slice(p));
             var c = tourCost(cand, ctx);
-            if (c < bestCost - 0.01) { best = cand; bestCost = c; improved = true; i = 0; }
+            if (c < bestCost - 0.01) {
+              best = cand; bestCost = c; improved = true;
+              pre = prefixAnchors(best, ctx);
+              i = 0;
+            }
           }
         }
       }
     }
     return best;
+  }
+
+  /** pre[k] = número de citas pactadas entre las k primeras paradas. */
+  function prefixAnchors(seq, ctx) {
+    var pre = [0];
+    for (var i = 0; i < seq.length; i++) pre.push(pre[i] + (ctx.appt(seq[i]) ? 1 : 0));
+    return pre;
+  }
+
+  /**
+   * Inserta el nodo en la posición más barata que no descarte visitas ni
+   * rompa ninguna cita. Devuelve la nueva secuencia, o null si no cabe.
+   */
+  function insertFeasible(seq, node, ctx, maxTries) {
+    var opts = [];
+    for (var pos = 0; pos <= seq.length; pos++) {
+      opts.push({ pos: pos, cost: insertionCost(seq, pos, node, ctx) });
+    }
+    opts.sort(function (a, b) { return a.cost - b.cost; });
+    var tries = Math.min(opts.length, maxTries || 8);
+    for (var i = 0; i < tries; i++) {
+      var trial = seq.slice();
+      trial.splice(opts[i].pos, 0, node);
+      var sim = simulate(trial, ctx);
+      if (!sim.dropped.length && !sim.conflicts.length) return trial;
+    }
+    return null;
   }
 
   /**
@@ -312,18 +483,29 @@ window.BTP = window.BTP || {};
   function optimizeSequence(ctx) {
     var s = ctx.settings;
     var budget = totalBudgetMin(s);
-    var seq = [];
-    var pool = [];
+    var anchors = [], mandatory = [], pool = [];
 
     for (var i = 1; i < ctx.nodes.length; i++) {
       var n = ctx.nodes[i];
-      if (n.kind === 'destino' || (n.client && n.client.pinned)) {
-        var bp = bestPosition(seq, i, ctx);
-        seq.splice(bp.pos, 0, i);
-      } else {
-        pool.push(i);
-      }
+      if (ctx.appt(i)) anchors.push(i);
+      else if (n.kind === 'destino' || (n.client && n.client.pinned)) mandatory.push(i);
+      else pool.push(i);
     }
+
+    // Las citas pactadas forman el esqueleto del viaje, en orden cronológico.
+    anchors.sort(function (a, b) {
+      var aa = ctx.appt(a), ab = ctx.appt(b);
+      var da = aa.dayIndex === null ? 0 : aa.dayIndex;
+      var db = ab.dayIndex === null ? 0 : ab.dayIndex;
+      return da !== db ? da - db : aa.start - ab.start;
+    });
+    var seq = anchors.slice();
+
+    mandatory.forEach(function (node) {
+      var next = insertFeasible(seq, node, ctx, 10);
+      if (next) { seq = next; return; }
+      seq.splice(bestPosition(seq, node, ctx).pos, 0, node);  // obligatoria: entra igual
+    });
 
     function routeTime(sq) {
       var t = tourCost(sq, ctx);
@@ -342,17 +524,12 @@ window.BTP = window.BTP || {};
           var extra = insertionCost(seq, pos, node, ctx) + vis;
           if (used + extra > budget) continue;
           var ratio = ctx.score(node) / Math.max(extra, 5);
-          if (!best || ratio > best.ratio) {
-            best = { poolIdx: p, node: node, pos: pos, ratio: ratio };
-          }
+          if (!best || ratio > best.ratio) best = { poolIdx: p, node: node, ratio: ratio };
         }
       }
       if (!best) break;
-
-      var trial = seq.slice();
-      trial.splice(best.pos, 0, best.node);
-      var sim = simulate(trial, ctx);
-      if (!sim.dropped.length) seq = trial;
+      var next = insertFeasible(seq, best.node, ctx, 8);
+      if (next) seq = next;
       pool.splice(best.poolIdx, 1);
     }
 
@@ -360,6 +537,7 @@ window.BTP = window.BTP || {};
     var simImproved = simulate(improved, ctx);
     var simBase = simulate(seq, ctx);
     if (simImproved.dropped.length <= simBase.dropped.length &&
+      simImproved.conflicts.length <= simBase.conflicts.length &&
       simImproved.totals.km <= simBase.totals.km + 0.5) {
       return improved;
     }
@@ -398,11 +576,128 @@ window.BTP = window.BTP || {};
       seq: seq,
       days: sim.days,
       dropped: sim.dropped,
+      conflicts: sim.conflicts,
       totals: sim.totals,
       matrixSource: ctx.matrix.source,
       settings: ctx.settings
     };
+    plan.appointments = suggestAroundAppointments(plan);
     return attachGeometries(plan).then(function () { return plan; });
+  }
+
+  /* --- 6. Sugerencias alrededor de las citas pactadas ------------------- */
+
+  /** Localiza en qué día y a qué hora ha quedado una parada. */
+  function findVisit(sim, node) {
+    for (var d = 0; d < sim.days.length; d++) {
+      var items = sim.days[d].items;
+      for (var i = 0; i < items.length; i++) {
+        if (items[i].type === 'visita' && items[i].node === node) {
+          return { dayIndex: d, startMin: items[i].startMin, endMin: items[i].endMin };
+        }
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Para cada cita pactada propone clientes cercanos que no están en la
+   * agenda, con la hora concreta a la que encajarían sin tocar la cita.
+   */
+  function suggestAroundAppointments(plan, opts) {
+    opts = opts || {};
+    var radiusKm = opts.radiusKm || Number(plan.settings.apptNearbyKm) || 35;
+    var maxPerAppt = opts.max || 6;
+    var ctx = plan.ctx;
+    if (!ctx.anyAppt) return [];
+
+    var inPlan = {};
+    plan.seq.forEach(function (n) { inPlan[n] = true; });
+    var base = simulate(plan.seq, ctx);
+
+    var out = [];
+    plan.days.forEach(function (day, di) {
+      day.items.forEach(function (it) {
+        if (it.type !== 'visita' || !it.fixed) return;
+        var apptNode = it.node;
+        var anchor = ctx.nodes[apptNode];
+
+        var nearby = [];
+        for (var i = 1; i < ctx.nodes.length; i++) {
+          if (inPlan[i] || ctx.appt(i)) continue;
+          var n = ctx.nodes[i];
+          if (n.kind !== 'cliente') continue;
+          var km = U.haversine(anchor, n);
+          if (km <= radiusKm) nearby.push({ node: i, km: km });
+        }
+        nearby.sort(function (a, b) { return a.km - b.km; });
+        nearby = nearby.slice(0, 25);
+
+        var found = [];
+        nearby.forEach(function (cand) {
+          var placement = bestPlacementOnDay(plan.seq, cand.node, ctx, di, base);
+          if (placement) {
+            found.push({
+              node: cand.node,
+              client: ctx.nodes[cand.node].client,
+              km: cand.km,
+              startMin: placement.startMin,
+              endMin: placement.endMin,
+              extraMin: placement.extraMin,
+              extraKm: placement.extraKm,
+              score: ctx.score(cand.node)
+            });
+          }
+        });
+
+        found.sort(function (a, b) {
+          return (b.score / Math.max(b.extraMin, 5)) - (a.score / Math.max(a.extraMin, 5));
+        });
+
+        out.push({
+          node: apptNode,
+          client: anchor.client,
+          dayIndex: di,
+          date: day.date,
+          startMin: it.startMin,
+          endMin: it.endMin,
+          suggestions: found.slice(0, maxPerAppt),
+          evaluados: nearby.length
+        });
+      });
+    });
+    return out;
+  }
+
+  /** Mejor hueco para un candidato dentro de un día concreto, si lo hay. */
+  function bestPlacementOnDay(seq, node, ctx, dayIndex, base) {
+    var best = null;
+    for (var pos = 0; pos <= seq.length; pos++) {
+      var trial = seq.slice();
+      trial.splice(pos, 0, node);
+      var sim = simulate(trial, ctx);
+      if (sim.dropped.length > base.dropped.length || sim.conflicts.length > base.conflicts.length) continue;
+      var where = findVisit(sim, node);
+      if (!where || where.dayIndex !== dayIndex) continue;
+      var extraMin = sim.totals.driveMin - base.totals.driveMin;
+      if (!best || extraMin < best.extraMin) {
+        best = {
+          pos: pos,
+          startMin: where.startMin,
+          endMin: where.endMin,
+          extraMin: Math.max(0, extraMin),
+          extraKm: Math.max(0, sim.totals.km - base.totals.km)
+        };
+      }
+    }
+    return best;
+  }
+
+  /** Añade una parada al plan en el mejor hueco disponible. */
+  function addVisit(plan, node) {
+    var next = insertFeasible(plan.seq, node, plan.ctx, plan.seq.length + 1);
+    if (!next) return null;
+    return next;
   }
 
   /** Pide a OSRM el trazado real de cada jornada (si está disponible). */
@@ -413,6 +708,7 @@ window.BTP = window.BTP || {};
       var idxs = [day.fromNode];
       day.items.forEach(function (it) {
         if (it.type === 'visita') idxs.push(it.node);
+        if (it.type === 'traslado') idxs.push(it.to);
         if (it.type === 'regreso') idxs.push(0);
       });
       if (idxs.length < 2) return;
@@ -433,6 +729,9 @@ window.BTP = window.BTP || {};
     rescheduleSequence: rescheduleSequence,
     simulate: simulate,
     scoreOf: scoreOf,
-    totalBudgetMin: totalBudgetMin
+    totalBudgetMin: totalBudgetMin,
+    apptOf: apptOf,
+    suggestAroundAppointments: suggestAroundAppointments,
+    addVisit: addVisit
   };
 })(window.BTP);

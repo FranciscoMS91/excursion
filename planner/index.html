@@ -79,6 +79,18 @@
         </div>
 
         <div class="group">
+          <h2>Citas ya pactadas</h2>
+          <p class="muted small">Visitas con hora cerrada. La agenda se construye alrededor de ellas y la app
+            te propone qué más ver cerca. Se marcan en la ficha de cada cliente.</p>
+          <div id="appt-list" class="appt-list"></div>
+          <label class="field full" style="margin-top:10px">
+            <span>Buscar visitas hasta <b id="apptNearbyKm-val">35</b> km alrededor de cada cita</span>
+            <input id="apptNearbyKm" type="range" min="5" max="120" step="5" value="35" />
+            <small class="hint">Esta zona entra en el viaje aunque quede fuera del radio o del corredor.</small>
+          </label>
+        </div>
+
+        <div class="group">
           <h2>A quién visitar</h2>
           <div class="chips">
             <label class="chip"><input type="checkbox" class="f-type" value="cliente" checked /><span>Clientes</span></label>

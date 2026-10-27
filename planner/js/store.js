@@ -30,6 +30,7 @@ window.BTP = window.BTP || {};
     speedKmh: 80,
     detour: 1.25,
     maxCandidates: 80,
+    apptNearbyKm: 35,
     wPriority: 1,
     wValue: 1,
     wRecency: 0.6,
@@ -89,12 +90,18 @@ window.BTP = window.BTP || {};
     c.geoStatus = c.geoStatus || (c.lat != null && c.lng != null ? 'ok' : 'pendiente');
     c.tags = Array.isArray(c.tags) ? c.tags : (c.tags ? String(c.tags).split(/[;,|]/).map(function (t) { return t.trim(); }).filter(Boolean) : []);
     ['contact', 'title', 'address', 'postal', 'city', 'province', 'country',
-      'phone', 'email', 'website', 'industry', 'lastVisit', 'notes'].forEach(function (k) {
+      'phone', 'email', 'website', 'industry', 'lastVisit', 'notes',
+      'apptDate', 'apptTime'].forEach(function (k) {
         c[k] = (c[k] == null ? '' : String(c[k])).trim();
       });
     if (!c.country) c.country = 'España';
     c.pinned = !!c.pinned;
     return c;
+  }
+
+  /** Un cliente con hora pactada ancla la agenda del día. */
+  function hasAppointment(c) {
+    return !!(c && c.apptTime);
   }
 
   /** Dirección completa en una línea, para geocodificar y mostrar. */
@@ -168,6 +175,7 @@ window.BTP = window.BTP || {};
     saveSettings: saveSettings,
     saveGeocache: saveGeocache,
     normalizeClient: normalizeClient,
+    hasAppointment: hasAppointment,
     fullAddress: fullAddress,
     addClients: addClients,
     upsertClient: upsertClient,

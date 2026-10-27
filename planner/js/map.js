@@ -59,6 +59,10 @@ window.BTP = window.BTP || {};
 
     var badge = '<span class="pop-badge ' + c.type + '">' + (c.type === 'cliente' ? 'Cliente' : 'Prospecto') +
       '</span><span class="pop-badge prio">Prioridad ' + ['', 'baja', 'media', 'alta'][c.priority] + '</span>';
+    if (BTP.store.hasAppointment(c)) {
+      badge += '<span class="pop-badge appt">🔒 Cita ' +
+        (c.apptDate ? U.escapeHtml(c.apptDate) + ' ' : '') + U.escapeHtml(c.apptTime) + '</span>';
+    }
 
     return '<div class="popup">' +
       '<h4>' + U.escapeHtml(c.name) + '</h4>' + badge +
@@ -91,13 +95,14 @@ window.BTP = window.BTP || {};
     clients.forEach(function (c) {
       if (c.lat == null || c.lng == null) return;
       var planned = !!hi[c.id];
+      var appt = BTP.store.hasAppointment(c);
       var marker = L.circleMarker([c.lat, c.lng], {
-        radius: planned ? 4 : 4 + c.priority,
-        color: planned ? '#ffffff' : TYPE_COLORS[c.type],
-        weight: planned ? 1 : 2,
-        opacity: planned ? 0.5 : 0.95,
+        radius: appt ? 9 : (planned ? 4 : 4 + c.priority),
+        color: appt ? '#0b1526' : (planned ? '#ffffff' : TYPE_COLORS[c.type]),
+        weight: appt ? 3 : (planned ? 1 : 2),
+        opacity: (planned && !appt) ? 0.5 : 0.95,
         fillColor: TYPE_COLORS[c.type],
-        fillOpacity: planned ? 0.25 : 0.65
+        fillOpacity: (planned && !appt) ? 0.25 : 0.7
       });
       marker.bindPopup(clientPopup(c), { minWidth: 240 });
       bindPopupActions(marker, c);
@@ -176,6 +181,15 @@ window.BTP = window.BTP || {};
     });
   }
 
+  function apptIcon(number, color) {
+    return L.divIcon({
+      className: 'btp-stop btp-appt',
+      html: '<span style="background:' + color + '">' + number + '</span>',
+      iconSize: [28, 28],
+      iconAnchor: [14, 14]
+    });
+  }
+
   /** Pinta las rutas por día y numera las paradas. */
   function renderPlan(plan, activeDay) {
     if (!map) return;
@@ -204,9 +218,11 @@ window.BTP = window.BTP || {};
         if (it.type !== 'visita') return;
         n++;
         var node = plan.nodes[it.node];
-        var marker = L.marker([node.lat, node.lng], { icon: stopIcon(n, color), opacity: visible ? 1 : 0.35 });
+        var icon = it.fixed ? apptIcon(n, color) : stopIcon(n, color);
+        var marker = L.marker([node.lat, node.lng], { icon: icon, opacity: visible ? 1 : 0.35 });
         var body = '<div class="popup"><h4>' + U.escapeHtml(node.name) + '</h4>' +
-          '<p>Día ' + (di + 1) + ' · ' + U.fmtHM(it.startMin) + '–' + U.fmtHM(it.endMin) + '</p>';
+          '<p>' + (it.fixed ? '<b>Cita pactada</b> · ' : '') + 'Día ' + (di + 1) + ' · ' +
+          U.fmtHM(it.startMin) + '–' + U.fmtHM(it.endMin) + '</p>';
         if (node.client) body += '<p>' + U.escapeHtml(BTP.store.fullAddress(node.client)) + '</p>';
         body += '</div>';
         marker.bindPopup(body);
