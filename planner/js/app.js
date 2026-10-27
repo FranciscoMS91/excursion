@@ -326,6 +326,42 @@
     return avisos;
   }
 
+  /**
+   * Reacciona a lo que se escribe en el nombre de la empresa: si está en la
+   * cartera, muestra su dirección; si no, la pide.
+   */
+  function updateApptPlace() {
+    var nombre = $('#appt-client').value.trim();
+    var place = $('#appt-place');
+    var who = $('#appt-who');
+
+    if (!nombre) {
+      who.textContent = '';
+      who.className = 'hint';
+      place.value = '';
+      place.placeholder = 'Escribe el nombre de la empresa primero';
+      place.classList.remove('required');
+      return;
+    }
+
+    var c = findClientByLabel(nombre);
+    if (c) {
+      var dir = BTP.store.fullAddress(c);
+      place.value = dir;
+      place.placeholder = 'Dirección de la ficha';
+      place.classList.remove('required');
+      who.className = 'hint ok';
+      who.textContent = '✓ En tu cartera · ' + (c.type === 'cliente' ? 'cliente' : 'prospecto') +
+        (c.lat == null ? ' · sin coordenadas todavía' : '');
+    } else {
+      if (!place.classList.contains('required')) place.value = '';
+      place.placeholder = 'Obligatorio: ¿dónde está?  Ej. Derio, Bizkaia';
+      place.classList.add('required');
+      who.className = 'hint warn';
+      who.textContent = 'No está en tu cartera: indica dónde está y se crea la ficha al agendar.';
+    }
+  }
+
   function addAppointment() {
     var msg = $('#appt-msg');
     var btn = $('#btn-add-appt');
@@ -363,8 +399,10 @@
       listo = BTP.geocode.geocodeClient(c).then(function () {
         return BTP.store.upsertClient(c);
       });
-    } else if (lugar && c.lat == null) {
+    } else if (lugar && (c.lat == null || lugar !== BTP.store.fullAddress(c))) {
       c.address = lugar;
+      c.postal = ''; c.city = ''; c.province = '';
+      c.lat = null; c.lng = null;
       listo = BTP.geocode.geocodeClient(c).then(function () { return c; });
     } else {
       listo = Promise.resolve(c);
@@ -385,6 +423,7 @@
 
       $('#appt-client').value = '';
       $('#appt-place').value = '';
+      updateApptPlace();
       $('#appt-time').value = '';
       $('#appt-dur').value = '';
       btn.disabled = false;
@@ -508,8 +547,10 @@
   function bindActions() {
     $('#btn-optimize').addEventListener('click', optimize);
     $('#btn-add-appt').addEventListener('click', addAppointment);
+    $('#appt-client').addEventListener('input', updateApptPlace);
+    $('#appt-client').addEventListener('change', updateApptPlace);
     $('#appt-client').addEventListener('keydown', function (e) {
-      if (e.key === 'Enter') { e.preventDefault(); $('#appt-time').focus(); }
+      if (e.key === 'Enter') { e.preventDefault(); $('#appt-place').focus(); }
     });
 
     $('#client-search').addEventListener('input', U.debounce(function () {

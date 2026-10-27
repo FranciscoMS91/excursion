@@ -126,7 +126,7 @@ details.group[open] summary h2::after { content: ' ▴'; }
 .row.wrap { flex-wrap: wrap; }
 .row > input, .row > select { flex: 1; min-width: 0; }
 
-input[type=text], input[type=search], input[type=number], input[type=date], input[type=time],
+input:not([type=checkbox]):not([type=range]):not([type=radio]):not([type=file]),
 select, textarea {
   width: 100%;
   padding: 8px 10px;
@@ -434,7 +434,7 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
 }
 
 /* Alta rápida de citas pactadas */
-.grid3 { display: grid; grid-template-columns: 1.2fr 1fr 0.7fr; gap: 0 8px; }
+
 .appt-add {
   margin-top: 10px; padding: 10px;
   border: 1px solid var(--line); border-radius: var(--radius); background: #f8fafc;
@@ -443,3 +443,9 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
 .appt-msg { font-size: 11px; margin-top: 6px; min-height: 14px; }
 .appt-msg.ok { color: #15803d; }
 .appt-msg.error { color: #b45309; }
+
+.appt-add input { min-width: 0; }
+.appt-add .grid2 { gap: 0 8px; }
+#appt-place.required { border-color: #f59e0b; background: #fffbeb; }
+.hint.ok { color: #15803d; }
+.hint.warn { color: #b45309; }

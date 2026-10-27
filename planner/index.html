@@ -7,8 +7,8 @@
   <title>Planificador de viajes comerciales · Península Ibérica</title>
   <meta name="description"
     content="Planifica viajes de negocio de forma gráfica: clientes y prospectos sobre el mapa, rutas optimizadas y máximo número de visitas por viaje." />
-  <link rel="stylesheet" href="vendor/leaflet.css?v=16" />
-  <link rel="stylesheet" href="css/planner.css?v=16" />
+  <link rel="stylesheet" href="vendor/leaflet.css?v=17" />
+  <link rel="stylesheet" href="css/planner.css?v=17" />
 </head>
 
 <body>
@@ -18,7 +18,7 @@
       <div>
         <h1>Planificador de viajes comerciales</h1>
         <p>Optimiza cada desplazamiento por la península ibérica
-          <span class="build-tag" id="build-tag">v1.6 · citas con empresas nuevas</span>
+          <span class="build-tag" id="build-tag">v1.7 · formulario de citas ajustado</span>
         </p>
       </div>
     </div>
@@ -89,16 +89,20 @@
           <div class="appt-add">
             <label class="field full">
               <span>Empresa con la que has quedado</span>
-              <input id="appt-client" list="appt-clients" placeholder="De tu cartera, o un nombre nuevo"
+              <input id="appt-client" type="text" list="appt-clients" placeholder="De tu cartera, o un nombre nuevo"
                 autocomplete="off" />
               <datalist id="appt-clients"></datalist>
+              <small class="hint" id="appt-who"></small>
             </label>
             <label class="field full">
               <span>Dirección o ciudad</span>
-              <input id="appt-place" type="text" placeholder="Sólo si la empresa es nueva" autocomplete="off" />
+              <input id="appt-place" type="text" placeholder="Escribe el nombre de la empresa primero"
+                autocomplete="off" />
             </label>
-            <div class="grid3">
-              <label class="field"><span>Fecha</span><input id="appt-date" type="date" /></label>
+            <label class="field full">
+              <span>Fecha</span><input id="appt-date" type="date" />
+            </label>
+            <div class="grid2">
               <label class="field"><span>Hora</span><input id="appt-time" type="time" /></label>
               <label class="field"><span>Minutos</span>
                 <input id="appt-dur" type="number" min="15" max="480" step="15" placeholder="60" /></label>
@@ -268,20 +272,20 @@
   <div id="toast" class="toast"></div>
 
   <!-- Librerías incluidas en el repositorio: la app funciona sin CDN. -->
-  <script src="vendor/leaflet.js?v=16"></script>
-  <script src="vendor/xlsx.full.min.js?v=16"></script>
-  <script src="js/util.js?v=16"></script>
-  <script src="js/store.js?v=16"></script>
-  <script src="js/csv.js?v=16"></script>
-  <script src="js/geocode.js?v=16"></script>
-  <script src="js/routing.js?v=16"></script>
-  <script src="js/optimize.js?v=16"></script>
-  <script src="js/map.js?v=16"></script>
-  <script src="js/itinerary.js?v=16"></script>
-  <script src="js/clients.js?v=16"></script>
-  <script src="js/basemap-data.js?v=16"></script>
-  <script src="js/demo-data.js?v=16"></script>
-  <script src="js/app.js?v=16"></script>
+  <script src="vendor/leaflet.js?v=17"></script>
+  <script src="vendor/xlsx.full.min.js?v=17"></script>
+  <script src="js/util.js?v=17"></script>
+  <script src="js/store.js?v=17"></script>
+  <script src="js/csv.js?v=17"></script>
+  <script src="js/geocode.js?v=17"></script>
+  <script src="js/routing.js?v=17"></script>
+  <script src="js/optimize.js?v=17"></script>
+  <script src="js/map.js?v=17"></script>
+  <script src="js/itinerary.js?v=17"></script>
+  <script src="js/clients.js?v=17"></script>
+  <script src="js/basemap-data.js?v=17"></script>
+  <script src="js/demo-data.js?v=17"></script>
+  <script src="js/app.js?v=17"></script>
 </body>
 
 </html>

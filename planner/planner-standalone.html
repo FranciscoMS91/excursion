@@ -800,7 +800,7 @@ details.group[open] summary h2::after { content: ' ▴'; }
 .row.wrap { flex-wrap: wrap; }
 .row > input, .row > select { flex: 1; min-width: 0; }
 
-input[type=text], input[type=search], input[type=number], input[type=date], input[type=time],
+input:not([type=checkbox]):not([type=range]):not([type=radio]):not([type=file]),
 select, textarea {
   width: 100%;
   padding: 8px 10px;
@@ -1108,7 +1108,7 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
 }
 
 /* Alta rápida de citas pactadas */
-.grid3 { display: grid; grid-template-columns: 1.2fr 1fr 0.7fr; gap: 0 8px; }
+
 .appt-add {
   margin-top: 10px; padding: 10px;
   border: 1px solid var(--line); border-radius: var(--radius); background: #f8fafc;
@@ -1117,6 +1117,12 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
 .appt-msg { font-size: 11px; margin-top: 6px; min-height: 14px; }
 .appt-msg.ok { color: #15803d; }
 .appt-msg.error { color: #b45309; }
+
+.appt-add input { min-width: 0; }
+.appt-add .grid2 { gap: 0 8px; }
+#appt-place.required { border-color: #f59e0b; background: #fffbeb; }
+.hint.ok { color: #15803d; }
+.hint.warn { color: #b45309; }
 
 </style>
 </head>
@@ -1128,7 +1134,7 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
       <div>
         <h1>Planificador de viajes comerciales</h1>
         <p>Optimiza cada desplazamiento por la península ibérica
-          <span class="build-tag" id="build-tag">v1.6 · citas con empresas nuevas · fichero único 2026-10-27</span>
+          <span class="build-tag" id="build-tag">v1.7 · formulario ajustado · fichero único 2026-10-27</span>
         </p>
       </div>
     </div>
@@ -1199,16 +1205,20 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
           <div class="appt-add">
             <label class="field full">
               <span>Empresa con la que has quedado</span>
-              <input id="appt-client" list="appt-clients" placeholder="De tu cartera, o un nombre nuevo"
+              <input id="appt-client" type="text" list="appt-clients" placeholder="De tu cartera, o un nombre nuevo"
                 autocomplete="off" />
               <datalist id="appt-clients"></datalist>
+              <small class="hint" id="appt-who"></small>
             </label>
             <label class="field full">
               <span>Dirección o ciudad</span>
-              <input id="appt-place" type="text" placeholder="Sólo si la empresa es nueva" autocomplete="off" />
+              <input id="appt-place" type="text" placeholder="Escribe el nombre de la empresa primero"
+                autocomplete="off" />
             </label>
-            <div class="grid3">
-              <label class="field"><span>Fecha</span><input id="appt-date" type="date" /></label>
+            <label class="field full">
+              <span>Fecha</span><input id="appt-date" type="date" />
+            </label>
+            <div class="grid2">
               <label class="field"><span>Hora</span><input id="appt-time" type="time" /></label>
               <label class="field"><span>Minutos</span>
                 <input id="appt-dur" type="number" min="15" max="480" step="15" placeholder="60" /></label>
@@ -6744,6 +6754,42 @@ window.BTP = window.BTP || {};
     return avisos;
   }
 
+  /**
+   * Reacciona a lo que se escribe en el nombre de la empresa: si está en la
+   * cartera, muestra su dirección; si no, la pide.
+   */
+  function updateApptPlace() {
+    var nombre = $('#appt-client').value.trim();
+    var place = $('#appt-place');
+    var who = $('#appt-who');
+
+    if (!nombre) {
+      who.textContent = '';
+      who.className = 'hint';
+      place.value = '';
+      place.placeholder = 'Escribe el nombre de la empresa primero';
+      place.classList.remove('required');
+      return;
+    }
+
+    var c = findClientByLabel(nombre);
+    if (c) {
+      var dir = BTP.store.fullAddress(c);
+      place.value = dir;
+      place.placeholder = 'Dirección de la ficha';
+      place.classList.remove('required');
+      who.className = 'hint ok';
+      who.textContent = '✓ En tu cartera · ' + (c.type === 'cliente' ? 'cliente' : 'prospecto') +
+        (c.lat == null ? ' · sin coordenadas todavía' : '');
+    } else {
+      if (!place.classList.contains('required')) place.value = '';
+      place.placeholder = 'Obligatorio: ¿dónde está?  Ej. Derio, Bizkaia';
+      place.classList.add('required');
+      who.className = 'hint warn';
+      who.textContent = 'No está en tu cartera: indica dónde está y se crea la ficha al agendar.';
+    }
+  }
+
   function addAppointment() {
     var msg = $('#appt-msg');
     var btn = $('#btn-add-appt');
@@ -6781,8 +6827,10 @@ window.BTP = window.BTP || {};
       listo = BTP.geocode.geocodeClient(c).then(function () {
         return BTP.store.upsertClient(c);
       });
-    } else if (lugar && c.lat == null) {
+    } else if (lugar && (c.lat == null || lugar !== BTP.store.fullAddress(c))) {
       c.address = lugar;
+      c.postal = ''; c.city = ''; c.province = '';
+      c.lat = null; c.lng = null;
       listo = BTP.geocode.geocodeClient(c).then(function () { return c; });
     } else {
       listo = Promise.resolve(c);
@@ -6803,6 +6851,7 @@ window.BTP = window.BTP || {};
 
       $('#appt-client').value = '';
       $('#appt-place').value = '';
+      updateApptPlace();
       $('#appt-time').value = '';
       $('#appt-dur').value = '';
       btn.disabled = false;
@@ -6926,8 +6975,10 @@ window.BTP = window.BTP || {};
   function bindActions() {
     $('#btn-optimize').addEventListener('click', optimize);
     $('#btn-add-appt').addEventListener('click', addAppointment);
+    $('#appt-client').addEventListener('input', updateApptPlace);
+    $('#appt-client').addEventListener('change', updateApptPlace);
     $('#appt-client').addEventListener('keydown', function (e) {
-      if (e.key === 'Enter') { e.preventDefault(); $('#appt-time').focus(); }
+      if (e.key === 'Enter') { e.preventDefault(); $('#appt-place').focus(); }
     });
 
     $('#client-search').addEventListener('input', U.debounce(function () {
