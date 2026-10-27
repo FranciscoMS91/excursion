@@ -41,10 +41,15 @@ html = html.replace(
     '<a class="link-sample" href="ejemplo-clientes.csv" download>Descargar plantilla CSV</a>',
     '<span class="link-sample" style="color:var(--muted)">Plantilla CSV: ver planner/ejemplo-clientes.csv en el repositorio</span>')
 
+# 4b. El fichero suelto no puede instalarse como PWA: fuera manifiesto y service worker
+html = re.sub(r'\s*<link rel="manifest"[^>]*>', '', html)
+html = re.sub(r'\s*<link rel="(?:icon|apple-touch-icon)"[^>]*>', '', html)
+html = re.sub(r"\s*<script>\s*if \('serviceWorker' in navigator\).*?</script>", '', html, flags=re.S)
+
 # 5. Sello de version con la fecha de generacion
 import datetime
-sello = 'v1.7 \u00b7 formulario ajustado \u00b7 fichero \u00fanico ' + datetime.date.today().isoformat()
-html = html.replace('v1.7 \u00b7 formulario de citas ajustado', sello)
+sello = 'v1.8 \u00b7 fichero \u00fanico ' + datetime.date.today().isoformat()
+html = html.replace('v1.8 \u00b7 instalable en m\u00f3vil', sello)
 
 leftovers = re.findall(r'(?:src|href)="(?!data:|https?:|#|mailto:|tel:)([^"]+)"', html)
 if leftovers:

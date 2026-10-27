@@ -345,7 +345,7 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
 
 /* ------------------------------------------------------------ Responsive */
-@media (max-width: 1200px) {
+@media (max-width: 1200px) and (min-width: 721px) {
   body { overflow: auto; }
   .layout { grid-template-columns: 1fr; }
   .sidebar { border-right: 0; border-bottom: 1px solid var(--line); max-height: none; }
@@ -449,3 +449,76 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
 #appt-place.required { border-color: #f59e0b; background: #fffbeb; }
 .hint.ok { color: #15803d; }
 .hint.warn { color: #b45309; }
+
+/* ----------------------------------------------------------------- Móvil */
+.mobile-nav { display: none; }
+
+@media (max-width: 720px) {
+  body { overflow: hidden; }
+
+  .topbar { padding: 8px 12px; padding-top: calc(8px + env(safe-area-inset-top)); }
+  .brand h1 { font-size: 14px; }
+  .brand p { font-size: 10px; }
+  .brand .logo { font-size: 20px; }
+  .build-tag { display: block; margin: 2px 0 0; }
+  .top-status { display: none; }
+
+  /* Una sola vista a la vez, a pantalla completa */
+  .layout { grid-template-columns: 1fr; grid-template-rows: 1fr; position: relative; }
+  .sidebar, .map-wrap, .itin-wrap {
+    grid-row: 1; grid-column: 1;
+    display: none;
+    height: 100%;
+    min-height: 0;
+    border: 0;
+  }
+  body[data-view="panel"] .sidebar,
+  body[data-view="mapa"] .map-wrap,
+  body[data-view="itinerario"] .itin-wrap { display: flex; flex-direction: column; }
+  body[data-view="panel"] .sidebar { display: block; overflow-y: auto; }
+
+  .itinerary { overflow-y: auto; flex: 1; }
+  .legend { bottom: 12px; left: 8px; font-size: 11px; padding: 6px 8px; gap: 8px; }
+
+  /* Barra inferior de navegación */
+  .mobile-nav {
+    display: flex;
+    flex: 0 0 auto;
+    border-top: 1px solid var(--line);
+    background: var(--panel);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .mobile-nav button {
+    flex: 1; padding: 11px 4px; border: 0; background: none;
+    font: inherit; font-size: 12px; font-weight: 600; color: var(--ink-2); cursor: pointer;
+    border-top: 3px solid transparent; margin-top: -1px;
+  }
+  .mobile-nav button.active { color: var(--brand); border-top-color: var(--brand); }
+
+  /* Objetivos táctiles más grandes */
+  .tab { padding: 14px 6px; }
+  .mini { padding: 7px 10px; font-size: 13px; }
+  .btn { padding: 11px 14px; }
+  .v-actions { flex-direction: row; gap: 6px; }
+  .tl-row.visit { padding: 10px 10px; }
+  input, select, textarea { font-size: 16px; }   /* evita el zoom automático en iOS */
+
+  .grid2 { grid-template-columns: 1fr 1fr; }
+  .form-grid { grid-template-columns: 1fr; }
+  .map-grid { grid-template-columns: 1fr; }
+  .kpis { grid-template-columns: repeat(3, 1fr); }
+  .suggest { margin-left: 10px; margin-right: 4px; }
+  .modal-box { max-height: 94vh; }
+  .modal-backdrop { padding: 8px; }
+}
+
+@media (max-width: 380px) {
+  .kpis { grid-template-columns: repeat(2, 1fr); }
+  .mobile-nav button { font-size: 11px; }
+}
+
+/* Acciones de visita: los enlaces deben verse como los botones */
+a.mini { text-decoration: none; display: inline-flex; align-items: center; justify-content: center; }
+@media (max-width: 720px) {
+  .v-actions { flex-wrap: wrap; max-width: 96px; justify-content: flex-end; }
+}
