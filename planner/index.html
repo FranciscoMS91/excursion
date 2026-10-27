@@ -3,12 +3,20 @@
 
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Planificador de viajes comerciales · Península Ibérica</title>
   <meta name="description"
     content="Planifica viajes de negocio de forma gráfica: clientes y prospectos sobre el mapa, rutas optimizadas y máximo número de visitas por viaje." />
-  <link rel="stylesheet" href="vendor/leaflet.css?v=17" />
-  <link rel="stylesheet" href="css/planner.css?v=17" />
+  <meta name="theme-color" content="#0b1526" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Viajes" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" href="icons/favicon-64.png" sizes="64x64" type="image/png" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+  <link rel="stylesheet" href="vendor/leaflet.css?v=18" />
+  <link rel="stylesheet" href="css/planner.css?v=18" />
 </head>
 
 <body>
@@ -18,7 +26,7 @@
       <div>
         <h1>Planificador de viajes comerciales</h1>
         <p>Optimiza cada desplazamiento por la península ibérica
-          <span class="build-tag" id="build-tag">v1.7 · formulario de citas ajustado</span>
+          <span class="build-tag" id="build-tag">v1.8 · instalable en móvil</span>
         </p>
       </div>
     </div>
@@ -268,24 +276,39 @@
     </aside>
   </main>
 
+  <nav class="mobile-nav" id="mobile-nav">
+    <button data-view="panel" class="active">☰ Panel</button>
+    <button data-view="mapa">🗺 Mapa</button>
+    <button data-view="itinerario">📋 Itinerario</button>
+  </nav>
+
   <div id="modal" class="modal-backdrop"></div>
   <div id="toast" class="toast"></div>
 
   <!-- Librerías incluidas en el repositorio: la app funciona sin CDN. -->
-  <script src="vendor/leaflet.js?v=17"></script>
-  <script src="vendor/xlsx.full.min.js?v=17"></script>
-  <script src="js/util.js?v=17"></script>
-  <script src="js/store.js?v=17"></script>
-  <script src="js/csv.js?v=17"></script>
-  <script src="js/geocode.js?v=17"></script>
-  <script src="js/routing.js?v=17"></script>
-  <script src="js/optimize.js?v=17"></script>
-  <script src="js/map.js?v=17"></script>
-  <script src="js/itinerary.js?v=17"></script>
-  <script src="js/clients.js?v=17"></script>
-  <script src="js/basemap-data.js?v=17"></script>
-  <script src="js/demo-data.js?v=17"></script>
-  <script src="js/app.js?v=17"></script>
+  <script src="vendor/leaflet.js?v=18"></script>
+  <script src="vendor/xlsx.full.min.js?v=18"></script>
+  <script src="js/util.js?v=18"></script>
+  <script src="js/store.js?v=18"></script>
+  <script src="js/csv.js?v=18"></script>
+  <script src="js/geocode.js?v=18"></script>
+  <script src="js/routing.js?v=18"></script>
+  <script src="js/optimize.js?v=18"></script>
+  <script src="js/map.js?v=18"></script>
+  <script src="js/itinerary.js?v=18"></script>
+  <script src="js/clients.js?v=18"></script>
+  <script src="js/basemap-data.js?v=18"></script>
+  <script src="js/demo-data.js?v=18"></script>
+  <script src="js/app.js?v=18"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function () {
+        navigator.serviceWorker.register('sw.js').catch(function (e) {
+          console.warn('Service worker no registrado:', e);
+        });
+      });
+    }
+  </script>
 </body>
 
 </html>

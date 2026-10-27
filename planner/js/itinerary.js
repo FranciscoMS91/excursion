@@ -234,6 +234,15 @@ window.BTP = window.BTP || {};
     row.appendChild(main);
 
     var actions = el('div', { class: 'v-actions' }, [
+      (c && c.phone) ? el('a', {
+        class: 'mini', title: 'Llamar a ' + c.phone, text: '📞',
+        href: 'tel:' + String(c.phone).replace(/[^+\d]/g, '')
+      }) : null,
+      el('a', {
+        class: 'mini', title: 'Cómo llegar', text: '🧭', target: '_blank', rel: 'noopener',
+        href: 'https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=' +
+          node.lat.toFixed(6) + ',' + node.lng.toFixed(6)
+      }),
       el('button', {
         class: 'mini', title: 'Centrar en el mapa', text: '🎯',
         onclick: function () { BTP.map.flyTo(node.lat, node.lng, 14); }

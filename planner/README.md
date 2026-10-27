@@ -20,6 +20,26 @@ python3 -m http.server 8000
 # y abrir http://localhost:8000/planner/
 ```
 
+### En el móvil (Android y iPhone)
+
+Servida por HTTPS, la aplicación es una **PWA**: se instala desde el navegador sin pasar
+por ninguna tienda.
+
+- **Android (Chrome):** abre la URL → menú ⋮ → *Instalar aplicación* / *Añadir a pantalla
+  de inicio*.
+- **iPhone (Safari):** abre la URL → botón Compartir → *Añadir a pantalla de inicio*.
+  Tiene que ser Safari; desde Chrome en iOS no se instala.
+
+Queda con su icono, se abre a pantalla completa sin barra del navegador y, gracias al
+service worker (`sw.js`), **sigue funcionando sin cobertura**: la aplicación y el mapa
+base propio están cacheados. Sin red no se pueden geocodificar direcciones nuevas ni
+obtener tiempos reales de carretera, y las teselas en línea no cargarán.
+
+En pantallas de menos de 720 px la interfaz muestra una zona cada vez, con una barra
+inferior para cambiar entre **Panel**, **Mapa** e **Itinerario**; al terminar de optimizar
+salta sola al itinerario. Cada visita lleva botones para **llamar** y para **abrir la
+navegación** hasta esa dirección.
+
 También funciona publicándola en **GitHub Pages** (Settings → Pages → rama y carpeta
 raíz); la app quedaría en `https://<usuario>.github.io/excursion/planner/`.
 
@@ -229,6 +249,9 @@ planner/
 │   ├── basemap-data.js     Contornos y ciudades del mapa propio
 │   ├── demo-data.js        91 empresas ficticias de ejemplo
 │   └── app.js              Arranque y conexión entre piezas
+├── manifest.webmanifest    Datos de instalación como aplicación
+├── sw.js                   Service worker: la app funciona sin cobertura
+├── icons/                  Iconos de la aplicación
 ├── vendor/                 Leaflet y SheetJS incluidos (funciona sin CDN)
 ├── build-standalone.py     Genera la versión de un solo fichero
 ├── planner-standalone.html Versión autocontenida (generada)

@@ -510,6 +510,9 @@
       plan.days.forEach(function (d) { (d.points || []).forEach(function (x) { pts.push(x); }); });
       BTP.map.fitTo(pts);
       topStatus('');
+      if (BTP.mostrarVista && window.matchMedia('(max-width: 720px)').matches) {
+        BTP.mostrarVista('itinerario');
+      }
       toast(plan.totals.visits + ' visitas en ' + plan.totals.days + ' día(s) · ' +
         Math.round(plan.totals.km) + ' km');
     }).catch(function (err) {
@@ -542,6 +545,24 @@
         $$('.tab-panel').forEach(function (p) { p.classList.toggle('active', p.id === 'tab-' + id); });
       });
     });
+  }
+
+  /** En el móvil sólo se ve una de las tres zonas a la vez. */
+  function bindMobileNav() {
+    var nav = $('#mobile-nav');
+    if (!nav) return;
+    function mostrar(vista) {
+      document.body.setAttribute('data-view', vista);
+      $$('#mobile-nav button').forEach(function (b) {
+        b.classList.toggle('active', b.getAttribute('data-view') === vista);
+      });
+      if (vista === 'mapa') BTP.map.invalidate();
+    }
+    $$('#mobile-nav button').forEach(function (b) {
+      b.addEventListener('click', function () { mostrar(b.getAttribute('data-view')); });
+    });
+    mostrar('panel');
+    BTP.mostrarVista = mostrar;
   }
 
   function bindActions() {
@@ -659,6 +680,7 @@
     bindTabs();
     bindForm();
     bindActions();
+    bindMobileNav();
     BTP.clients.setOnChange(function () { refreshAll(); });
 
     renderItinerary();
