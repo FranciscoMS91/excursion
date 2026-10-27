@@ -1105,7 +1105,7 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
       <div>
         <h1>Planificador de viajes comerciales</h1>
         <p>Optimiza cada desplazamiento por la península ibérica
-          <span class="build-tag" id="build-tag">v1.1 · con citas pactadas · fichero único 2026-10-27</span>
+          <span class="build-tag" id="build-tag">v1.2 · citas pactadas + mapa Carto · fichero único 2026-10-27</span>
         </p>
       </div>
     </div>
@@ -1249,6 +1249,33 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
             a 1 consulta por segundo. Los resultados quedan en caché.</p>
           <button class="btn" id="btn-geocode">Geocodificar pendientes</button>
           <div class="progress hidden" id="geo-progress"><div class="bar"></div><span></span></div>
+        </div>
+
+        <div class="group">
+          <h2>Mapa base</h2>
+          <label class="field full">
+            <span>Proveedor de teselas</span>
+            <select id="tileProvider">
+              <option value="voyager">Carto Voyager (color)</option>
+              <option value="light">Carto claro (sobrio)</option>
+              <option value="dark">Carto oscuro</option>
+              <option value="osm">OpenStreetMap (sólo servido por web)</option>
+              <option value="custom">Personalizado…</option>
+            </select>
+          </label>
+          <div id="tile-custom" class="hidden">
+            <label class="field full">
+              <span>URL de plantilla</span>
+              <input id="tileUrl" type="text" placeholder="https://tile.ejemplo.com/{z}/{x}/{y}.png?key=TU_CLAVE" />
+            </label>
+            <label class="field full">
+              <span>Atribución</span>
+              <input id="tileAttribution" type="text" placeholder="© Proveedor" />
+            </label>
+          </div>
+          <small class="hint">Los servidores de OpenStreetMap son voluntarios y bloquean las apps que no se
+            identifican, incluido todo lo que se abra con doble clic sobre el fichero. Para uso comercial
+            intensivo, saca una clave gratuita en MapTiler o Geoapify y pégala aquí como proveedor personalizado.</small>
         </div>
 
         <div class="group">
@@ -1542,6 +1569,9 @@ window.BTP = window.BTP || {};
     detour: 1.25,
     maxCandidates: 80,
     apptNearbyKm: 35,
+    tileProvider: 'voyager',
+    tileUrl: '',
+    tileAttribution: '',
     wPriority: 1,
     wValue: 1,
     wRecency: 0.6,
@@ -2954,6 +2984,71 @@ window.BTP = window.BTP || {};
   var map = null;
   var layers = {};
   var handlers = {};
+  var tileLayer = null;
+
+  var OSM_ATTR = '&copy; colaboradores de <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
+
+  /* Proveedores de mapa base. Los servidores de OpenStreetMap son voluntarios y
+     su política rechaza las aplicaciones que no se identifican (y todo lo que se
+     abra con file://), así que por defecto se usa CARTO. */
+  var TILES = {
+    voyager: {
+      name: 'Carto Voyager (color)',
+      url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+      subdomains: 'abcd', maxZoom: 20,
+      attribution: OSM_ATTR + ' &copy; <a href="https://carto.com/attributions">CARTO</a>'
+    },
+    light: {
+      name: 'Carto claro (sobrio)',
+      url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+      subdomains: 'abcd', maxZoom: 20,
+      attribution: OSM_ATTR + ' &copy; <a href="https://carto.com/attributions">CARTO</a>'
+    },
+    dark: {
+      name: 'Carto oscuro',
+      url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+      subdomains: 'abcd', maxZoom: 20,
+      attribution: OSM_ATTR + ' &copy; <a href="https://carto.com/attributions">CARTO</a>'
+    },
+    osm: {
+      name: 'OpenStreetMap (sólo servido por web)',
+      url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+      subdomains: 'abc', maxZoom: 19,
+      attribution: OSM_ATTR
+    }
+  };
+
+  function tileConfig(settings) {
+    if (settings.tileProvider === 'custom' && settings.tileUrl) {
+      return {
+        name: 'Personalizado',
+        url: settings.tileUrl,
+        subdomains: 'abc',
+        maxZoom: 20,
+        attribution: settings.tileAttribution || 'Mapa base propio'
+      };
+    }
+    return TILES[settings.tileProvider] || TILES.voyager;
+  }
+
+  /** Cambia el mapa base sin recrear el resto de capas. */
+  function setTiles(settings) {
+    if (!map) return;
+    if (tileLayer) map.removeLayer(tileLayer);
+    var cfg = tileConfig(settings);
+    var errors = 0;
+    tileLayer = L.tileLayer(cfg.url, {
+      subdomains: cfg.subdomains,
+      maxZoom: cfg.maxZoom,
+      detectRetina: true,
+      attribution: cfg.attribution
+    });
+    tileLayer.on('tileerror', function () {
+      errors++;
+      if (errors === 4 && handlers.onTileError) handlers.onTileError(cfg.name);
+    });
+    tileLayer.addTo(map);
+  }
 
   function dayColor(i) { return DAY_COLORS[i % DAY_COLORS.length]; }
 
@@ -2970,10 +3065,7 @@ window.BTP = window.BTP || {};
     map = L.map(elementId, { zoomControl: true, preferCanvas: true })
       .setView([40.2, -4.0], 6);
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19,
-      attribution: '&copy; colaboradores de <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-    }).addTo(map);
+    setTiles(BTP.store.state.settings);
 
     layers.zone = L.layerGroup().addTo(map);
     layers.clients = L.layerGroup().addTo(map);
@@ -3191,6 +3283,8 @@ window.BTP = window.BTP || {};
 
   BTP.map = {
     init: init,
+    setTiles: setTiles,
+    TILES: TILES,
     renderClients: renderClients,
     renderZone: renderZone,
     renderPlan: renderPlan,
@@ -6272,6 +6366,10 @@ window.BTP = window.BTP || {};
     bindInput('filterTag', 'filterTag');
     bindInput('maxCandidates', 'maxCandidates', 'number');
     bindInput('apptNearbyKm', 'apptNearbyKm', 'number');
+    bindInput('tileProvider', 'tileProvider', null, applyTiles);
+    bindInput('tileUrl', 'tileUrl', null, applyTiles);
+    bindInput('tileAttribution', 'tileAttribution', null, applyTiles);
+    $('#tile-custom').classList.toggle('hidden', S.tileProvider !== 'custom');
     bindInput('useOsrm', 'useOsrm', 'check');
     bindInput('speedKmh', 'speedKmh', 'number');
     bindInput('detour', 'detour', 'number');
@@ -6333,6 +6431,11 @@ window.BTP = window.BTP || {};
     }, 500));
 
     $('#btn-gps').addEventListener('click', useGeolocation);
+  }
+
+  function applyTiles() {
+    $('#tile-custom').classList.toggle('hidden', S.tileProvider !== 'custom');
+    BTP.map.setTiles(S);
   }
 
   /* --- Geocodificación de origen y destino ------------------------------ */
@@ -6672,6 +6775,10 @@ window.BTP = window.BTP || {};
 
   function init() {
     BTP.map.init('map', {
+      onTileError: function (nombre) {
+        toast('El servidor de mapas «' + nombre + '» ha rechazado las teselas. ' +
+          'Cambia de proveedor en Datos → Mapa base.', 9000);
+      },
       onEditClient: function (id) { BTP.clients.openEditor(id); },
       onTogglePin: function (id) {
         var c = BTP.store.getClient(id);

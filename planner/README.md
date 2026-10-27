@@ -161,10 +161,17 @@ recalcula en menos de un segundo.
 |---|---|---|
 | [Nominatim](https://nominatim.openstreetmap.org) | Convertir direcciones en coordenadas | Al geocodificar; resultados en caché |
 | [OSRM](https://project-osrm.org) (servidor público de demostración) | Tiempos reales y trazado de las rutas | Al optimizar, si está activado |
-| Teselas de OpenStreetMap | Fondo del mapa | Siempre que el mapa esté visible |
+| [CARTO basemaps](https://carto.com/attributions) | Fondo del mapa (por defecto) | Siempre que el mapa esté visible |
 
 La cartera **no sale del navegador**: no hay backend ni cuenta de usuario. Sólo se envían
 a esos servicios las direcciones a geocodificar y las coordenadas de las paradas.
+
+**Sobre el mapa base:** los servidores de teselas de OpenStreetMap están mantenidos por
+voluntarios y su política rechaza las aplicaciones que no se identifican, incluido
+cualquier fichero abierto con `file://`; devuelven un 403 «Access blocked». Por eso el
+proveedor por defecto es CARTO, que funciona sin clave. En *Datos → Mapa base* puedes
+elegir otro estilo o poner tu propia URL de teselas: si vas a darle uso comercial
+intensivo, saca una clave gratuita en MapTiler o Geoapify y pégala ahí.
 
 Ambos son servicios públicos gratuitos con límites de uso pensados para volúmenes
 pequeños. Para uso intensivo conviene levantar una instancia propia de OSRM/Nominatim y

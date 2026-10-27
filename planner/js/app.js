@@ -65,6 +65,10 @@
     bindInput('filterTag', 'filterTag');
     bindInput('maxCandidates', 'maxCandidates', 'number');
     bindInput('apptNearbyKm', 'apptNearbyKm', 'number');
+    bindInput('tileProvider', 'tileProvider', null, applyTiles);
+    bindInput('tileUrl', 'tileUrl', null, applyTiles);
+    bindInput('tileAttribution', 'tileAttribution', null, applyTiles);
+    $('#tile-custom').classList.toggle('hidden', S.tileProvider !== 'custom');
     bindInput('useOsrm', 'useOsrm', 'check');
     bindInput('speedKmh', 'speedKmh', 'number');
     bindInput('detour', 'detour', 'number');
@@ -126,6 +130,11 @@
     }, 500));
 
     $('#btn-gps').addEventListener('click', useGeolocation);
+  }
+
+  function applyTiles() {
+    $('#tile-custom').classList.toggle('hidden', S.tileProvider !== 'custom');
+    BTP.map.setTiles(S);
   }
 
   /* --- Geocodificación de origen y destino ------------------------------ */
@@ -465,6 +474,10 @@
 
   function init() {
     BTP.map.init('map', {
+      onTileError: function (nombre) {
+        toast('El servidor de mapas «' + nombre + '» ha rechazado las teselas. ' +
+          'Cambia de proveedor en Datos → Mapa base.', 9000);
+      },
       onEditClient: function (id) { BTP.clients.openEditor(id); },
       onTogglePin: function (id) {
         var c = BTP.store.getClient(id);

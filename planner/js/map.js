@@ -11,6 +11,71 @@ window.BTP = window.BTP || {};
   var map = null;
   var layers = {};
   var handlers = {};
+  var tileLayer = null;
+
+  var OSM_ATTR = '&copy; colaboradores de <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
+
+  /* Proveedores de mapa base. Los servidores de OpenStreetMap son voluntarios y
+     su política rechaza las aplicaciones que no se identifican (y todo lo que se
+     abra con file://), así que por defecto se usa CARTO. */
+  var TILES = {
+    voyager: {
+      name: 'Carto Voyager (color)',
+      url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+      subdomains: 'abcd', maxZoom: 20,
+      attribution: OSM_ATTR + ' &copy; <a href="https://carto.com/attributions">CARTO</a>'
+    },
+    light: {
+      name: 'Carto claro (sobrio)',
+      url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+      subdomains: 'abcd', maxZoom: 20,
+      attribution: OSM_ATTR + ' &copy; <a href="https://carto.com/attributions">CARTO</a>'
+    },
+    dark: {
+      name: 'Carto oscuro',
+      url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+      subdomains: 'abcd', maxZoom: 20,
+      attribution: OSM_ATTR + ' &copy; <a href="https://carto.com/attributions">CARTO</a>'
+    },
+    osm: {
+      name: 'OpenStreetMap (sólo servido por web)',
+      url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+      subdomains: 'abc', maxZoom: 19,
+      attribution: OSM_ATTR
+    }
+  };
+
+  function tileConfig(settings) {
+    if (settings.tileProvider === 'custom' && settings.tileUrl) {
+      return {
+        name: 'Personalizado',
+        url: settings.tileUrl,
+        subdomains: 'abc',
+        maxZoom: 20,
+        attribution: settings.tileAttribution || 'Mapa base propio'
+      };
+    }
+    return TILES[settings.tileProvider] || TILES.voyager;
+  }
+
+  /** Cambia el mapa base sin recrear el resto de capas. */
+  function setTiles(settings) {
+    if (!map) return;
+    if (tileLayer) map.removeLayer(tileLayer);
+    var cfg = tileConfig(settings);
+    var errors = 0;
+    tileLayer = L.tileLayer(cfg.url, {
+      subdomains: cfg.subdomains,
+      maxZoom: cfg.maxZoom,
+      detectRetina: true,
+      attribution: cfg.attribution
+    });
+    tileLayer.on('tileerror', function () {
+      errors++;
+      if (errors === 4 && handlers.onTileError) handlers.onTileError(cfg.name);
+    });
+    tileLayer.addTo(map);
+  }
 
   function dayColor(i) { return DAY_COLORS[i % DAY_COLORS.length]; }
 
@@ -27,10 +92,7 @@ window.BTP = window.BTP || {};
     map = L.map(elementId, { zoomControl: true, preferCanvas: true })
       .setView([40.2, -4.0], 6);
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19,
-      attribution: '&copy; colaboradores de <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-    }).addTo(map);
+    setTiles(BTP.store.state.settings);
 
     layers.zone = L.layerGroup().addTo(map);
     layers.clients = L.layerGroup().addTo(map);
@@ -248,6 +310,8 @@ window.BTP = window.BTP || {};
 
   BTP.map = {
     init: init,
+    setTiles: setTiles,
+    TILES: TILES,
     renderClients: renderClients,
     renderZone: renderZone,
     renderPlan: renderPlan,

@@ -18,7 +18,7 @@
       <div>
         <h1>Planificador de viajes comerciales</h1>
         <p>Optimiza cada desplazamiento por la península ibérica
-          <span class="build-tag" id="build-tag">v1.1 · con citas pactadas</span>
+          <span class="build-tag" id="build-tag">v1.2 · citas pactadas + mapa Carto</span>
         </p>
       </div>
     </div>
@@ -162,6 +162,33 @@
             a 1 consulta por segundo. Los resultados quedan en caché.</p>
           <button class="btn" id="btn-geocode">Geocodificar pendientes</button>
           <div class="progress hidden" id="geo-progress"><div class="bar"></div><span></span></div>
+        </div>
+
+        <div class="group">
+          <h2>Mapa base</h2>
+          <label class="field full">
+            <span>Proveedor de teselas</span>
+            <select id="tileProvider">
+              <option value="voyager">Carto Voyager (color)</option>
+              <option value="light">Carto claro (sobrio)</option>
+              <option value="dark">Carto oscuro</option>
+              <option value="osm">OpenStreetMap (sólo servido por web)</option>
+              <option value="custom">Personalizado…</option>
+            </select>
+          </label>
+          <div id="tile-custom" class="hidden">
+            <label class="field full">
+              <span>URL de plantilla</span>
+              <input id="tileUrl" type="text" placeholder="https://tile.ejemplo.com/{z}/{x}/{y}.png?key=TU_CLAVE" />
+            </label>
+            <label class="field full">
+              <span>Atribución</span>
+              <input id="tileAttribution" type="text" placeholder="© Proveedor" />
+            </label>
+          </div>
+          <small class="hint">Los servidores de OpenStreetMap son voluntarios y bloquean las apps que no se
+            identifican, incluido todo lo que se abra con doble clic sobre el fichero. Para uso comercial
+            intensivo, saca una clave gratuita en MapTiler o Geoapify y pégala aquí como proveedor personalizado.</small>
         </div>
 
         <div class="group">
