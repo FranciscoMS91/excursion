@@ -23,6 +23,22 @@ python3 -m http.server 8000
 También funciona publicándola en **GitHub Pages** (Settings → Pages → rama y carpeta
 raíz); la app quedaría en `https://<usuario>.github.io/excursion/planner/`.
 
+### Versión en un solo fichero
+
+`planner-standalone.html` es la misma app con los estilos, los scripts, Leaflet y SheetJS
+incrustados: un único fichero de ~1,2 MB que se abre con doble clic desde cualquier
+carpeta, sin necesidad del resto del repositorio. Se regenera con:
+
+```bash
+python3 planner/build-standalone.py
+```
+
+Hay que volver a generarlo cada vez que se toque `index.html`, el CSS o el JavaScript.
+Dos diferencias respecto a la versión servida: la cartera se guarda por fichero (si lo
+mueves de carpeta, el navegador lo trata como otro origen y no verás los datos
+importados), y el botón de geolocalización no funciona porque los navegadores lo
+restringen a HTTPS y localhost.
+
 ---
 
 ## Flujo de trabajo
@@ -152,5 +168,7 @@ planner/
 │   ├── demo-data.js        91 empresas ficticias de ejemplo
 │   └── app.js              Arranque y conexión entre piezas
 ├── vendor/                 Leaflet y SheetJS incluidos (funciona sin CDN)
+├── build-standalone.py     Genera la versión de un solo fichero
+├── planner-standalone.html Versión autocontenida (generada)
 └── ejemplo-clientes.csv    Plantilla de importación
 ```
