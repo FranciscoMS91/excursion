@@ -82,6 +82,8 @@ window.BTP = window.BTP || {};
     { key: 'value', label: 'Valor / potencial (€)', aliases: ['valor', 'potencial', 'facturacion', 'annualrevenue', 'revenue', 'importe', 'valorpotencial', 'ingresos', 'volumen'] },
     { key: 'lastVisit', label: 'Última visita', aliases: ['ultimavisita', 'fechaultimavisita', 'lastvisit', 'ultimocontacto', 'lastcontacted', 'lastactivity'] },
     { key: 'duration', label: 'Duración visita (min)', aliases: ['duracion', 'duracionvisita', 'minutos', 'visitduration', 'duracionmin'] },
+    { key: 'apptDate', label: 'Fecha de cita pactada', aliases: ['fechacita', 'fechareunion', 'citafecha', 'appointmentdate', 'meetingdate', 'fechaacordada'] },
+    { key: 'apptTime', label: 'Hora de cita pactada', aliases: ['horacita', 'horareunion', 'citahora', 'appointmenttime', 'meetingtime', 'horaacordada', 'hora'] },
     { key: 'lat', label: 'Latitud', aliases: ['lat', 'latitud', 'latitude'] },
     { key: 'lng', label: 'Longitud', aliases: ['lng', 'lon', 'long', 'longitud', 'longitude'] },
     { key: 'tags', label: 'Etiquetas', aliases: ['etiquetas', 'tags', 'labels', 'lists', 'listas', 'keywords'] },
@@ -149,6 +151,21 @@ window.BTP = window.BTP || {};
     return 2;
   }
 
+  /** Normaliza una hora suelta a HH:MM; cadena vacía si no se reconoce. */
+  function parseTime(s) {
+    var t = String(s || '').trim();
+    if (!t) return '';
+    var pm = /p\.?\s*m\.?/i.test(t), am = /a\.?\s*m\.?/i.test(t);
+    var m = /(\d{1,2})\s*[:.hH]\s*(\d{2})/.exec(t) || /^(\d{1,2})\s*(?:h|:00)?$/.exec(t);
+    if (!m) return '';
+    var h = parseInt(m[1], 10);
+    var min = m[2] === undefined ? 0 : parseInt(m[2], 10);
+    if (pm && h < 12) h += 12;
+    if (am && h === 12) h = 0;
+    if (isNaN(h) || isNaN(min) || h > 23 || min > 59) return '';
+    return ('0' + h).slice(-2) + ':' + ('0' + min).slice(-2);
+  }
+
   function parseDate(s) {
     var t = String(s || '').trim();
     if (!t) return '';
@@ -194,6 +211,8 @@ window.BTP = window.BTP || {};
         value: parseNumber(cell(row, map.value)),
         lastVisit: parseDate(cell(row, map.lastVisit)),
         duration: parseNumber(cell(row, map.duration)) || null,
+        apptDate: parseDate(cell(row, map.apptDate)),
+        apptTime: parseTime(cell(row, map.apptTime)),
         lat: lat ? parseFloat(lat.replace(',', '.')) : null,
         lng: lng ? parseFloat(lng.replace(',', '.')) : null,
         tags: cell(row, map.tags),
@@ -207,12 +226,13 @@ window.BTP = window.BTP || {};
   function clientsToCsv(clients) {
     var headers = ['Nombre', 'Tipo', 'Prioridad', 'Contacto', 'Cargo', 'Direccion', 'CP', 'Ciudad',
       'Provincia', 'Pais', 'Telefono', 'Email', 'Web', 'Sector', 'Valor', 'UltimaVisita',
-      'DuracionMin', 'Etiquetas', 'Notas', 'Latitud', 'Longitud'];
+      'DuracionMin', 'FechaCita', 'HoraCita', 'Etiquetas', 'Notas', 'Latitud', 'Longitud'];
     var rows = [headers];
     clients.forEach(function (c) {
       rows.push([c.name, c.type, c.priority, c.contact, c.title, c.address, c.postal, c.city,
         c.province, c.country, c.phone, c.email, c.website, c.industry, c.value, c.lastVisit,
-        c.duration || '', (c.tags || []).join('; '), c.notes, c.lat == null ? '' : c.lat, c.lng == null ? '' : c.lng]);
+        c.duration || '', c.apptDate || '', c.apptTime || '',
+        (c.tags || []).join('; '), c.notes, c.lat == null ? '' : c.lat, c.lng == null ? '' : c.lng]);
     });
     return serialize(rows, ';');
   }
@@ -225,6 +245,7 @@ window.BTP = window.BTP || {};
     clientsToCsv: clientsToCsv,
     FIELDS: FIELDS,
     parseNumber: parseNumber,
-    parseDate: parseDate
+    parseDate: parseDate,
+    parseTime: parseTime
   };
 })(window.BTP);

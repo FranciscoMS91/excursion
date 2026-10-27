@@ -129,6 +129,16 @@ window.BTP = window.BTP || {};
     return Math.floor((Date.now() - d) / 86400000);
   }
 
+  /** Días enteros de la fecha a a la fecha b; null si alguna no es válida. */
+  function daysBetween(a, b) {
+    var pa = String(a || '').split('-'), pb = String(b || '').split('-');
+    if (pa.length !== 3 || pb.length !== 3) return null;
+    var da = Date.UTC(+pa[0], +pa[1] - 1, +pa[2]);
+    var db = Date.UTC(+pb[0], +pb[1] - 1, +pb[2]);
+    if (isNaN(da) || isNaN(db)) return null;
+    return Math.round((db - da) / 86400000);
+  }
+
   function debounce(fn, ms) {
     var t;
     return function () {
@@ -155,6 +165,7 @@ window.BTP = window.BTP || {};
     haversine: haversine, pointToSegmentKm: pointToSegmentKm, toXY: toXY,
     parseHM: parseHM, fmtHM: fmtHM, fmtDur: fmtDur, fmtKm: fmtKm,
     todayISO: todayISO, addDays: addDays, fmtDateES: fmtDateES, daysSince: daysSince,
+    daysBetween: daysBetween,
     debounce: debounce, download: download, sleep: sleep
   };
 })(window.BTP);

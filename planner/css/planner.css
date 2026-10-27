@@ -363,3 +363,72 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
   .day-card { break-inside: avoid; box-shadow: none; }
   .kpis { grid-template-columns: repeat(6, 1fr); }
 }
+
+/* ------------------------------------------------------- Citas pactadas */
+.tag.appt { background: #0b1526; color: #fff; }
+.pop-badge.appt { background: #0b1526; color: #fff; }
+
+.appt-list { display: flex; flex-direction: column; gap: 6px; }
+.appt-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  border: 1px solid var(--line); border-left: 3px solid #0b1526;
+  border-radius: 8px; padding: 7px 9px; background: #f8fafc;
+}
+.appt-when { font-size: 12px; font-weight: 700; }
+.appt-who { font-size: 12px; color: var(--ink-2); }
+
+.tl-row.wait { color: #0369a1; font-size: 12px; }
+.tl-row.visit.fixed {
+  background: #f1f5f9;
+  border-left: 3px solid #0b1526;
+  cursor: default;
+}
+
+.conflicts {
+  border: 1px solid #fca5a5; background: #fef2f2;
+  border-radius: var(--radius); padding: 10px 12px; margin: 10px 0;
+}
+.conflicts-head { font-weight: 700; font-size: 12px; color: #b91c1c; margin-bottom: 4px; }
+.conflicts-row { font-size: 12px; color: #7f1d1d; padding: 2px 0; }
+
+.suggest {
+  margin: 2px 12px 10px 70px;
+  border: 1px dashed var(--line);
+  border-radius: 8px; padding: 8px 10px; background: #fcfdff;
+}
+.suggest-head { font-size: 11px; font-weight: 700; color: var(--ink-2); margin-bottom: 6px; }
+.suggest-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 5px 0; border-top: 1px dotted var(--line);
+}
+.suggest-row:first-of-type { border-top: 0; }
+.sg-main { flex: 1; min-width: 0; }
+.sg-name { font-size: 13px; font-weight: 600; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.sg-meta { font-size: 11px; color: var(--ink-2); }
+.sg-slot { font-size: 11px; color: var(--brand); }
+.mini.primary { background: var(--brand); color: #fff; border-color: var(--brand); }
+.mini.primary:hover { background: #1e40af; }
+
+.btp-appt span { border-radius: 5px; border-width: 3px; border-color: #0b1526; }
+
+@media (max-width: 1200px) { .suggest { margin-left: 24px; } }
+
+.tl-row.transfer { color: #4338ca; font-size: 12px; }
+
+.build-tag {
+  display: inline-block; margin-left: 8px; padding: 1px 7px;
+  border-radius: 999px; background: #1e3a5f; color: #93c5fd;
+  font-size: 10px; font-weight: 700; letter-spacing: .3px; vertical-align: 1px;
+}
+
+/* Etiquetas del mapa base propio */
+.btp-city { pointer-events: none; }
+.btp-city i {
+  position: absolute; left: -3px; top: -3px; width: 6px; height: 6px;
+  background: #94a3b8; border-radius: 50%;
+}
+.btp-city span {
+  position: absolute; left: 7px; top: -8px; white-space: nowrap;
+  font-size: 11px; color: #64748b; font-weight: 600;
+  text-shadow: 0 0 3px #fff, 0 0 3px #fff, 0 0 3px #fff;
+}

@@ -33,6 +33,7 @@ window.BTP = window.BTP || {};
     }
 
     container.appendChild(renderKpis(plan));
+    if (plan.conflicts && plan.conflicts.length) container.appendChild(renderConflicts(plan));
     container.appendChild(renderTabs(plan, container, onChange));
 
     var body = el('div', { class: 'itin-body' });
@@ -128,6 +129,22 @@ window.BTP = window.BTP || {};
           el('span', { class: 'tl-icon', text: '🚗' }),
           el('span', { class: 'tl-main', text: U.fmtDur(it.min) + ' · ' + U.fmtKm(it.km) })
         ]));
+      } else if (it.type === 'traslado') {
+        list.appendChild(el('div', { class: 'tl-row transfer' }, [
+          el('span', { class: 'tl-time', text: U.fmtHM(it.startMin) }),
+          el('span', { class: 'tl-icon', text: '🌙' }),
+          el('span', {
+            class: 'tl-main',
+            text: 'Desplazamiento a ' + plan.nodes[it.to].name + ' para dormir cerca de la cita · ' +
+              U.fmtDur(it.min) + ' · ' + U.fmtKm(it.km) + ' (llegada ' + U.fmtHM(it.endMin) + ')'
+          })
+        ]));
+      } else if (it.type === 'espera') {
+        list.appendChild(el('div', { class: 'tl-row wait' }, [
+          el('span', { class: 'tl-time', text: U.fmtHM(it.startMin) }),
+          el('span', { class: 'tl-icon', text: '⏳' }),
+          el('span', { class: 'tl-main', text: 'Hueco libre de ' + U.fmtDur(it.min) + ' antes de la cita' })
+        ]));
       } else if (it.type === 'comida') {
         list.appendChild(el('div', { class: 'tl-row lunch' }, [
           el('span', { class: 'tl-time', text: U.fmtHM(it.startMin) }),
@@ -139,6 +156,10 @@ window.BTP = window.BTP || {};
         list.appendChild(plan.nodes[it.node].client
           ? renderVisit(plan, it, n, di)
           : renderWaypoint(plan, it, n, di));
+        if (it.fixed) {
+          var near = findAppointment(plan, it.node);
+          if (near) list.appendChild(renderSuggestions(near));
+        }
       } else if (it.type === 'regreso') {
         list.appendChild(el('div', { class: 'tl-row drive' }, [
           el('span', { class: 'tl-time', text: U.fmtHM(it.startMin) }),
@@ -184,8 +205,8 @@ window.BTP = window.BTP || {};
     var node = plan.nodes[it.node];
     var c = node.client;
     var row = el('div', {
-      class: 'tl-row visit' + (c && c.pinned ? ' pinned' : ''),
-      draggable: 'true',
+      class: 'tl-row visit' + (c && c.pinned ? ' pinned' : '') + (it.fixed ? ' fixed' : ''),
+      draggable: it.fixed ? 'false' : 'true',
       'data-node': it.node
     });
     row.appendChild(el('span', { class: 'tl-time', text: U.fmtHM(it.startMin) }));
@@ -197,7 +218,8 @@ window.BTP = window.BTP || {};
     main.appendChild(el('div', { class: 'v-name' }, [
       el('span', { text: node.name }),
       c ? el('span', { class: 'tag ' + c.type, text: c.type === 'cliente' ? 'cliente' : 'prospecto' }) : null,
-      c && c.pinned ? el('span', { class: 'tag pin', text: 'fija' }) : null
+      it.fixed ? el('span', { class: 'tag appt', text: '🔒 cita pactada ' + U.fmtHM(it.startMin) }) : null,
+      c && c.pinned && !it.fixed ? el('span', { class: 'tag pin', text: 'fija' }) : null
     ]));
     if (c) {
       main.appendChild(el('div', { class: 'v-addr', text: nodeAddress(node) }));
@@ -216,7 +238,7 @@ window.BTP = window.BTP || {};
         class: 'mini', title: 'Centrar en el mapa', text: '🎯',
         onclick: function () { BTP.map.flyTo(node.lat, node.lng, 14); }
       }),
-      c ? el('button', {
+      (c && !it.fixed) ? el('button', {
         class: 'mini', title: 'Marcar como visita obligatoria', text: c.pinned ? '★' : '☆',
         onclick: function () {
           c.pinned = !c.pinned;
@@ -224,7 +246,10 @@ window.BTP = window.BTP || {};
           if (state.onChange) state.onChange({ type: 'pin' });
         }
       }) : null,
-      el('button', {
+      it.fixed ? el('button', {
+        class: 'mini', title: 'Cambiar o quitar la hora pactada', text: '✎',
+        onclick: function () { if (state.onChange) state.onChange({ type: 'edit', id: c.id }); }
+      }) : el('button', {
         class: 'mini danger', title: 'Quitar del viaje', text: '✕',
         onclick: function () {
           var seq = currentSequence(state.plan).filter(function (x) { return x !== it.node; });
@@ -233,6 +258,8 @@ window.BTP = window.BTP || {};
       })
     ]);
     row.appendChild(actions);
+
+    if (it.fixed) return row;   // una hora pactada no se mueve arrastrando
 
     row.addEventListener('dragstart', function (e) {
       e.dataTransfer.setData('text/plain', String(it.node));
@@ -267,6 +294,76 @@ window.BTP = window.BTP || {};
       ]));
     });
     box.appendChild(el('div', { class: 'muted small', text: 'Amplía los días del viaje, alarga la jornada o reduce la duración de las visitas para incluirlas.' }));
+    return box;
+  }
+
+  function findAppointment(plan, node) {
+    var list = plan.appointments || [];
+    for (var i = 0; i < list.length; i++) {
+      if (list[i].node === node) return list[i];
+    }
+    return null;
+  }
+
+  /** Clientes cercanos a una cita que caben en los huecos de ese día. */
+  function renderSuggestions(appt) {
+    var box = el('div', { class: 'suggest' });
+    if (!appt.suggestions.length) {
+      box.appendChild(el('div', {
+        class: 'suggest-head muted',
+        text: appt.evaluados
+          ? 'Sin huecos libres para las ' + appt.evaluados + ' empresas cercanas a esta cita.'
+          : 'No hay otras empresas de tu cartera cerca de esta cita.'
+      }));
+      return box;
+    }
+    box.appendChild(el('div', {
+      class: 'suggest-head',
+      text: 'Cerca de esta cita (' + appt.suggestions.length + '), con hueco disponible:'
+    }));
+    appt.suggestions.forEach(function (sg) {
+      var c = sg.client;
+      box.appendChild(el('div', { class: 'suggest-row' }, [
+        el('div', { class: 'sg-main' }, [
+          el('div', { class: 'sg-name' }, [
+            el('span', { text: c.name }),
+            el('span', { class: 'tag ' + c.type, text: c.type === 'cliente' ? 'cliente' : 'prospecto' })
+          ]),
+          el('div', { class: 'sg-meta', text: [c.city, Math.round(sg.km) + ' km de la cita'].filter(Boolean).join(' · ') }),
+          el('div', { class: 'sg-slot' }, [
+            el('b', { text: U.fmtHM(sg.startMin) + '–' + U.fmtHM(sg.endMin) }),
+            el('span', { text: ' · cuesta ' + U.fmtDur(sg.extraMin) + ' y ' + Math.round(sg.extraKm) + ' km más' })
+          ])
+        ]),
+        el('button', {
+          class: 'mini primary', text: '+ Añadir',
+          onclick: function () {
+            if (state.onChange) state.onChange({ type: 'add', node: sg.node });
+          }
+        })
+      ]));
+    });
+    return box;
+  }
+
+  function conflictText(plan, c) {
+    var name = plan.nodes[c.node].name;
+    if (c.type === 'tarde') {
+      return 'Llegas ' + c.minutes + ' min tarde a la cita con ' + name +
+        '. Adelanta el inicio de jornada, quita visitas previas o añade un día antes para dormir cerca.';
+    }
+    if (c.type === 'fuera-de-rango') {
+      return 'La cita con ' + name + ' cae fuera de los días del viaje. Ajusta la fecha de inicio o el número de días.';
+    }
+    return 'La cita con ' + name + ' no encaja en el orden del viaje y se ha dejado fuera.';
+  }
+
+  function renderConflicts(plan) {
+    var box = el('div', { class: 'conflicts' });
+    box.appendChild(el('div', { class: 'conflicts-head', text: '⚠️ Problemas con las citas pactadas' }));
+    plan.conflicts.forEach(function (c) {
+      box.appendChild(el('div', { class: 'conflicts-row', text: conflictText(plan, c) }));
+    });
     return box;
   }
 

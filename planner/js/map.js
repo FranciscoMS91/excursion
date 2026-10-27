@@ -11,6 +11,124 @@ window.BTP = window.BTP || {};
   var map = null;
   var layers = {};
   var handlers = {};
+  var tileLayer = null;
+
+  var OSM_ATTR = '&copy; colaboradores de <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
+
+  /* Proveedores de mapa base. Los servidores de OpenStreetMap son voluntarios y
+     su política rechaza las aplicaciones que no se identifican (y todo lo que se
+     abra con file://), así que por defecto se usa CARTO. */
+  var TILES = {
+    voyager: {
+      name: 'Carto Voyager (necesita clave)',
+      url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+      subdomains: 'abcd', maxZoom: 20,
+      attribution: OSM_ATTR + ' &copy; <a href="https://carto.com/attributions">CARTO</a>'
+    },
+    light: {
+      name: 'Carto claro (necesita clave)',
+      url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+      subdomains: 'abcd', maxZoom: 20,
+      attribution: OSM_ATTR + ' &copy; <a href="https://carto.com/attributions">CARTO</a>'
+    },
+    dark: {
+      name: 'Carto oscuro (necesita clave)',
+      url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+      subdomains: 'abcd', maxZoom: 20,
+      attribution: OSM_ATTR + ' &copy; <a href="https://carto.com/attributions">CARTO</a>'
+    },
+    osm: {
+      name: 'OpenStreetMap',
+      url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+      subdomains: 'abc', maxZoom: 19,
+      // Sin retina: duplicar la resolución pide cuatro veces más teselas y es
+      // justo lo que hace saltar el bloqueo de sus servidores de voluntarios.
+      retina: false,
+      attribution: OSM_ATTR
+    }
+  };
+
+  /* Mapa base propio: no pide nada a ningún servidor. */
+  function drawOfflineBase() {
+    if (layers.base) { map.removeLayer(layers.base); layers.base = null; }
+    if (!BTP.basemap) return;
+    layers.base = L.layerGroup().addTo(map);
+
+    L.geoJSON(BTP.basemap.tierra, {
+      style: function (f) {
+        var esIberia = f.properties.name === 'Spain' || f.properties.name === 'Portugal' ||
+          f.properties.name === 'Andorra' || f.properties.name === 'Gibraltar';
+        return {
+          color: esIberia ? '#b9c6d8' : '#cfd8e3',
+          weight: 1,
+          fillColor: esIberia ? '#eef2f7' : '#e6eaf0',
+          fillOpacity: 1,
+          interactive: false
+        };
+      }
+    }).addTo(layers.base);
+
+    var etiquetas = L.layerGroup().addTo(layers.base);
+    function pintaCiudades() {
+      etiquetas.clearLayers();
+      var z = map.getZoom();
+      var limite = z >= 9 ? 3 : (z >= 7 ? 2 : 1);
+      BTP.basemap.ciudades.forEach(function (c) {
+        if (c.r > limite) return;
+        L.marker([c.lat, c.lng], {
+          interactive: false,
+          icon: L.divIcon({
+            className: 'btp-city',
+            html: '<i></i><span>' + U.escapeHtml(c.n) + '</span>',
+            iconSize: [0, 0]
+          })
+        }).addTo(etiquetas);
+      });
+    }
+    pintaCiudades();
+    map.on('zoomend', pintaCiudades);
+  }
+
+  function tileConfig(settings) {
+    if (settings.tileProvider === 'custom' && settings.tileUrl) {
+      return {
+        name: 'Personalizado',
+        url: settings.tileUrl,
+        subdomains: 'abc',
+        maxZoom: 20,
+        attribution: settings.tileAttribution || 'Mapa base propio'
+      };
+    }
+    return TILES[settings.tileProvider] || TILES.voyager;
+  }
+
+  /** Cambia el mapa base sin recrear el resto de capas. */
+  function setTiles(settings) {
+    if (!map) return;
+    if (tileLayer) { map.removeLayer(tileLayer); tileLayer = null; }
+
+    if (settings.tileProvider === 'offline' || !settings.tileProvider) {
+      drawOfflineBase();
+      return;
+    }
+    if (layers.base) { map.removeLayer(layers.base); layers.base = null; }
+
+    var cfg = tileConfig(settings);
+    var errors = 0;
+    tileLayer = L.tileLayer(cfg.url, {
+      subdomains: cfg.subdomains,
+      maxZoom: cfg.maxZoom,
+      detectRetina: cfg.retina !== false,
+      updateWhenIdle: true,   // no pedir teselas mientras se arrastra el mapa
+      keepBuffer: 1,          // menos teselas fuera de pantalla
+      attribution: cfg.attribution
+    });
+    tileLayer.on('tileerror', function () {
+      errors++;
+      if (errors === 4 && handlers.onTileError) handlers.onTileError(cfg.name);
+    });
+    tileLayer.addTo(map);
+  }
 
   function dayColor(i) { return DAY_COLORS[i % DAY_COLORS.length]; }
 
@@ -27,10 +145,7 @@ window.BTP = window.BTP || {};
     map = L.map(elementId, { zoomControl: true, preferCanvas: true })
       .setView([40.2, -4.0], 6);
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19,
-      attribution: '&copy; colaboradores de <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-    }).addTo(map);
+    setTiles(BTP.store.state.settings);
 
     layers.zone = L.layerGroup().addTo(map);
     layers.clients = L.layerGroup().addTo(map);
@@ -59,6 +174,10 @@ window.BTP = window.BTP || {};
 
     var badge = '<span class="pop-badge ' + c.type + '">' + (c.type === 'cliente' ? 'Cliente' : 'Prospecto') +
       '</span><span class="pop-badge prio">Prioridad ' + ['', 'baja', 'media', 'alta'][c.priority] + '</span>';
+    if (BTP.store.hasAppointment(c)) {
+      badge += '<span class="pop-badge appt">🔒 Cita ' +
+        (c.apptDate ? U.escapeHtml(c.apptDate) + ' ' : '') + U.escapeHtml(c.apptTime) + '</span>';
+    }
 
     return '<div class="popup">' +
       '<h4>' + U.escapeHtml(c.name) + '</h4>' + badge +
@@ -91,13 +210,14 @@ window.BTP = window.BTP || {};
     clients.forEach(function (c) {
       if (c.lat == null || c.lng == null) return;
       var planned = !!hi[c.id];
+      var appt = BTP.store.hasAppointment(c);
       var marker = L.circleMarker([c.lat, c.lng], {
-        radius: planned ? 4 : 4 + c.priority,
-        color: planned ? '#ffffff' : TYPE_COLORS[c.type],
-        weight: planned ? 1 : 2,
-        opacity: planned ? 0.5 : 0.95,
+        radius: appt ? 9 : (planned ? 4 : 4 + c.priority),
+        color: appt ? '#0b1526' : (planned ? '#ffffff' : TYPE_COLORS[c.type]),
+        weight: appt ? 3 : (planned ? 1 : 2),
+        opacity: (planned && !appt) ? 0.5 : 0.95,
         fillColor: TYPE_COLORS[c.type],
-        fillOpacity: planned ? 0.25 : 0.65
+        fillOpacity: (planned && !appt) ? 0.25 : 0.7
       });
       marker.bindPopup(clientPopup(c), { minWidth: 240 });
       bindPopupActions(marker, c);
@@ -176,6 +296,15 @@ window.BTP = window.BTP || {};
     });
   }
 
+  function apptIcon(number, color) {
+    return L.divIcon({
+      className: 'btp-stop btp-appt',
+      html: '<span style="background:' + color + '">' + number + '</span>',
+      iconSize: [28, 28],
+      iconAnchor: [14, 14]
+    });
+  }
+
   /** Pinta las rutas por día y numera las paradas. */
   function renderPlan(plan, activeDay) {
     if (!map) return;
@@ -204,9 +333,11 @@ window.BTP = window.BTP || {};
         if (it.type !== 'visita') return;
         n++;
         var node = plan.nodes[it.node];
-        var marker = L.marker([node.lat, node.lng], { icon: stopIcon(n, color), opacity: visible ? 1 : 0.35 });
+        var icon = it.fixed ? apptIcon(n, color) : stopIcon(n, color);
+        var marker = L.marker([node.lat, node.lng], { icon: icon, opacity: visible ? 1 : 0.35 });
         var body = '<div class="popup"><h4>' + U.escapeHtml(node.name) + '</h4>' +
-          '<p>Día ' + (di + 1) + ' · ' + U.fmtHM(it.startMin) + '–' + U.fmtHM(it.endMin) + '</p>';
+          '<p>' + (it.fixed ? '<b>Cita pactada</b> · ' : '') + 'Día ' + (di + 1) + ' · ' +
+          U.fmtHM(it.startMin) + '–' + U.fmtHM(it.endMin) + '</p>';
         if (node.client) body += '<p>' + U.escapeHtml(BTP.store.fullAddress(node.client)) + '</p>';
         body += '</div>';
         marker.bindPopup(body);
@@ -232,6 +363,8 @@ window.BTP = window.BTP || {};
 
   BTP.map = {
     init: init,
+    setTiles: setTiles,
+    TILES: TILES,
     renderClients: renderClients,
     renderZone: renderZone,
     renderPlan: renderPlan,
