@@ -33,7 +33,7 @@ por ninguna tienda.
 Queda con su icono, se abre a pantalla completa sin barra del navegador y, gracias al
 service worker (`sw.js`), **sigue funcionando sin cobertura**: la aplicación y el mapa
 base propio están cacheados. Sin red no se pueden geocodificar direcciones nuevas ni
-obtener tiempos reales de carretera, y las teselas en línea no cargarán.
+obtener tiempos reales de carretera; el mapa pasa solo al mapa base propio.
 
 En pantallas de menos de 720 px la interfaz muestra una zona cada vez, con una barra
 inferior para cambiar entre **Panel**, **Mapa** e **Itinerario**; al terminar de optimizar
@@ -211,7 +211,11 @@ porque el navegador no manda ningún origen. Para reducirlo, la app pide las tes
 resolución sencilla (sin retina, que multiplicaría por cuatro las peticiones) y sólo
 cuando el mapa se queda quieto.
 
-Si aun así sale bloqueado, hay dos salidas en *Datos → Mapa base*:
+Si el proveedor no responde —por bloqueo o por falta de cobertura— la aplicación pasa
+sola al mapa propio y lo avisa, en lugar de dejar el fondo en blanco. La preferencia
+guardada no se toca, así que al recargar con conexión se vuelve a intentar.
+
+Además, en *Datos → Mapa base* puedes elegir a mano:
 
 - **Mapa propio**: contornos de la península y unas sesenta ciudades incluidos en la app
   (`js/basemap-data.js`, generado a partir de Natural Earth, de dominio público). No pide

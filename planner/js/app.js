@@ -702,8 +702,8 @@
   function init() {
     BTP.map.init('map', {
       onTileError: function (nombre) {
-        toast('«' + nombre + '» ha rechazado las teselas. En Datos → Mapa base puedes ' +
-          'cambiar a «Mapa propio», que funciona siempre.', 9000);
+        toast('Sin mapa de «' + nombre + '»: he puesto el mapa propio para que puedas seguir. ' +
+          'Lo cambias en Datos → Mapa base.', 9000);
       },
       onEditClient: function (id) { BTP.clients.openEditor(id); },
       onTogglePin: function (id) {

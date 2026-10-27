@@ -125,7 +125,14 @@ window.BTP = window.BTP || {};
     });
     tileLayer.on('tileerror', function () {
       errors++;
-      if (errors === 4 && handlers.onTileError) handlers.onTileError(cfg.name);
+      // Si el proveedor no responde (bloqueo o falta de cobertura), se pasa al
+      // mapa propio para no dejar el fondo en blanco. No se toca la preferencia
+      // guardada: al recargar con conexión se vuelve a intentar.
+      if (errors === 4) {
+        if (tileLayer) { map.removeLayer(tileLayer); tileLayer = null; }
+        drawOfflineBase();
+        if (handlers.onTileError) handlers.onTileError(cfg.name);
+      }
     });
     tileLayer.addTo(map);
   }
