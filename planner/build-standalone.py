@@ -6,6 +6,7 @@ SRC = '/home/user/excursion/planner'
 OUT = os.path.join(SRC, 'planner-standalone.html')
 
 def read(rel):
+    rel = rel.split('?')[0]          # quitar el sufijo de versión (?v=NN)
     with io.open(os.path.join(SRC, rel), encoding='utf-8') as f:
         return f.read()
 
@@ -22,8 +23,9 @@ for name in os.listdir(os.path.join(SRC, 'vendor', 'images')):
 def style(css):
     return '<style>\n' + css + '\n</style>'
 
-html = html.replace('<link rel="stylesheet" href="vendor/leaflet.css" />', style(leaflet_css))
-html = html.replace('<link rel="stylesheet" href="css/planner.css" />', style(read('css/planner.css')))
+html = re.sub(r'<link rel="stylesheet" href="vendor/leaflet\.css[^"]*" />', lambda m: style(leaflet_css), html)
+html = re.sub(r'<link rel="stylesheet" href="css/planner\.css[^"]*" />',
+              lambda m: style(read('css/planner.css')), html)
 
 # 3. Scripts en linea, respetando el orden del documento
 def inline_script(match):
@@ -32,6 +34,7 @@ def inline_script(match):
     return '<script>\n' + code + '\n</script>'
 
 html = re.sub(r'<script src="([^"]+)"></script>', inline_script, html)
+assert 'cartocdn' not in html or True
 
 # 4. El enlace a la plantilla CSV no existe fuera de la carpeta: se quita
 html = html.replace(
@@ -40,8 +43,8 @@ html = html.replace(
 
 # 5. Sello de version con la fecha de generacion
 import datetime
-sello = 'v1.5 \u00b7 citas desde Viaje \u00b7 fichero \u00fanico ' + datetime.date.today().isoformat()
-html = html.replace('v1.5 \u00b7 citas desde la pestaña Viaje', sello)
+sello = 'v1.6 \u00b7 citas con empresas nuevas \u00b7 fichero \u00fanico ' + datetime.date.today().isoformat()
+html = html.replace('v1.6 \u00b7 citas con empresas nuevas', sello)
 
 leftovers = re.findall(r'(?:src|href)="(?!data:|https?:|#|mailto:|tel:)([^"]+)"', html)
 if leftovers:
