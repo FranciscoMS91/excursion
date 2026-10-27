@@ -48,8 +48,8 @@ html = re.sub(r"\s*<script>\s*if \('serviceWorker' in navigator\).*?</script>", 
 
 # 5. Sello de version con la fecha de generacion
 import datetime
-sello = 'v1.8 \u00b7 fichero \u00fanico ' + datetime.date.today().isoformat()
-html = html.replace('v1.8 \u00b7 instalable en m\u00f3vil', sello)
+sello = 'v1.9 \u00b7 fichero \u00fanico ' + datetime.date.today().isoformat()
+html = html.replace('v1.9 \u00b7 copia entre dispositivos', sello)
 
 leftovers = re.findall(r'(?:src|href)="(?!data:|https?:|#|mailto:|tel:)([^"]+)"', html)
 if leftovers:

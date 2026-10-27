@@ -630,6 +630,46 @@
       BTP.map.fitTo(BTP.store.state.clients);
     });
 
+    $('#btn-backup').addEventListener('click', function () {
+      var n = BTP.store.state.clients.length;
+      var hoy = U.todayISO();
+      U.download('planificador-copia-' + hoy + '.json', BTP.store.exportBackup(), 'application/json');
+      toast('Copia guardada con ' + n + ' empresas. Mándatela al otro dispositivo y restáurala allí.', 6000);
+    });
+
+    $('#btn-restore').addEventListener('click', function () { $('#backup-input').click(); });
+    $('#backup-input').addEventListener('change', function (e) {
+      var file = e.target.files[0];
+      e.target.value = '';
+      if (!file) return;
+      var r = new FileReader();
+      r.onload = function () {
+        var hay = BTP.store.state.clients.length;
+        var modo = 'reemplazar';
+        if (hay) {
+          modo = confirm('Ya tienes ' + hay + ' empresas en este dispositivo.\n\n' +
+            'Aceptar: combinar la copia con lo que hay.\n' +
+            'Cancelar: reemplazarlo todo por la copia.') ? 'combinar' : 'reemplazar';
+        }
+        try {
+          var res = BTP.store.importBackup(r.result, modo);
+          S = BTP.store.state.settings;
+          bindForm();
+          refreshAll();
+          plan = null;
+          renderItinerary();
+          BTP.map.renderPlan(null);
+          BTP.map.setTiles(S);
+          BTP.map.fitTo(BTP.store.state.clients.filter(function (c) { return c.lat != null; }));
+          toast('Copia restaurada: ' + res.added + ' empresas nuevas y ' + res.updated + ' actualizadas.', 6000);
+        } catch (err) {
+          alert(err.message);
+        }
+      };
+      r.onerror = function () { alert('No se ha podido leer el fichero.'); };
+      r.readAsText(file, 'utf-8');
+    });
+
     $('#btn-export-clients').addEventListener('click', function () {
       U.download('cartera-clientes.csv', BTP.csv.clientsToCsv(BTP.store.state.clients), 'text/csv');
     });

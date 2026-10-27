@@ -171,8 +171,60 @@ window.BTP = window.BTP || {};
     saveClients();
   }
 
+  /** Copia completa: cartera, ajustes y caché de direcciones. */
+  function exportBackup() {
+    return JSON.stringify({
+      formato: 'planificador-viajes',
+      version: 1,
+      fecha: new Date().toISOString(),
+      clientes: state.clients,
+      ajustes: state.settings,
+      geocache: state.geocache
+    }, null, 1);
+  }
+
+  /**
+   * Restaura una copia. modo 'reemplazar' borra lo que haya; 'combinar'
+   * añade los clientes nuevos y actualiza los que coincidan.
+   * Devuelve un resumen, o lanza un error si el fichero no es válido.
+   */
+  function importBackup(texto, modo) {
+    var datos;
+    try {
+      datos = JSON.parse(texto);
+    } catch (e) {
+      throw new Error('El fichero no es una copia válida (no se puede leer).');
+    }
+    if (!datos || datos.formato !== 'planificador-viajes' || !Array.isArray(datos.clientes)) {
+      throw new Error('Ese fichero no es una copia de este planificador.');
+    }
+
+    if (modo === 'reemplazar') {
+      state.clients = [];
+      saveClients();
+    }
+    var res = addClients(datos.clientes);
+
+    if (datos.ajustes) {
+      Object.keys(DEFAULT_SETTINGS).forEach(function (k) {
+        if (datos.ajustes[k] !== undefined) state.settings[k] = datos.ajustes[k];
+      });
+      saveSettings();
+    }
+    if (datos.geocache) {
+      Object.keys(datos.geocache).forEach(function (k) {
+        if (!state.geocache[k]) state.geocache[k] = datos.geocache[k];
+      });
+      saveGeocache();
+    }
+    res.fecha = datos.fecha || '';
+    return res;
+  }
+
   BTP.store = {
     state: state,
+    exportBackup: exportBackup,
+    importBackup: importBackup,
     DEFAULT_SETTINGS: DEFAULT_SETTINGS,
     saveClients: saveClients,
     saveSettings: saveSettings,

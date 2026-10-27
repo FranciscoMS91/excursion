@@ -457,10 +457,13 @@ window.BTP = window.BTP || {};
   }
 
   /**
-   * Inserta el nodo en la posición más barata que no descarte visitas ni
-   * rompa ninguna cita. Devuelve la nueva secuencia, o null si no cabe.
+   * Inserta el nodo en la posición más barata que no empeore la agenda.
+   * Se compara contra la situación de partida en lugar de exigir cero
+   * problemas: una cita imposible de cumplir (por ejemplo con la fecha
+   * fuera del viaje) no debe impedir que se planifique todo lo demás.
    */
   function insertFeasible(seq, node, ctx, maxTries) {
+    var base = simulate(seq, ctx);
     var opts = [];
     for (var pos = 0; pos <= seq.length; pos++) {
       opts.push({ pos: pos, cost: insertionCost(seq, pos, node, ctx) });
@@ -471,7 +474,10 @@ window.BTP = window.BTP || {};
       var trial = seq.slice();
       trial.splice(opts[i].pos, 0, node);
       var sim = simulate(trial, ctx);
-      if (!sim.dropped.length && !sim.conflicts.length) return trial;
+      if (sim.dropped.indexOf(node) >= 0) continue;           // no ha entrado
+      if (sim.dropped.length > base.dropped.length) continue;  // ha echado a otra
+      if (sim.conflicts.length > base.conflicts.length) continue;
+      return trial;
     }
     return null;
   }

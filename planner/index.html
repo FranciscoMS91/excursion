@@ -15,8 +15,8 @@
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="icon" href="icons/favicon-64.png" sizes="64x64" type="image/png" />
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
-  <link rel="stylesheet" href="vendor/leaflet.css?v=18" />
-  <link rel="stylesheet" href="css/planner.css?v=18" />
+  <link rel="stylesheet" href="vendor/leaflet.css?v=19" />
+  <link rel="stylesheet" href="css/planner.css?v=19" />
 </head>
 
 <body>
@@ -26,7 +26,7 @@
       <div>
         <h1>Planificador de viajes comerciales</h1>
         <p>Optimiza cada desplazamiento por la península ibérica
-          <span class="build-tag" id="build-tag">v1.8 · instalable en móvil</span>
+          <span class="build-tag" id="build-tag">v1.9 · copia entre dispositivos</span>
         </p>
       </div>
     </div>
@@ -245,9 +245,23 @@
           <p class="muted small" id="storage-info"></p>
           <div class="row wrap">
             <button class="btn" id="btn-demo">Cargar ejemplo</button>
-            <button class="btn" id="btn-export-clients">Exportar cartera</button>
+            <button class="btn" id="btn-export-clients">Exportar cartera (CSV)</button>
             <button class="btn danger" id="btn-clear-clients">Vaciar cartera</button>
           </div>
+        </div>
+
+        <div class="group">
+          <h2>Pasar los datos a otro dispositivo</h2>
+          <p class="muted small">Los datos viven en este navegador y no se sincronizan solos.
+            Esta copia lleva la cartera, las citas, los ajustes del viaje y las direcciones ya
+            localizadas, en un único fichero.</p>
+          <input type="file" id="backup-input" accept=".json,application/json" hidden />
+          <div class="row wrap">
+            <button class="btn primary" id="btn-backup">Guardar copia</button>
+            <button class="btn" id="btn-restore">Restaurar copia…</button>
+          </div>
+          <small class="hint">Guarda la copia, mándatela por correo o WhatsApp, ábrela en el móvil
+            y pulsa «Restaurar copia».</small>
         </div>
       </section>
     </aside>
@@ -286,20 +300,20 @@
   <div id="toast" class="toast"></div>
 
   <!-- Librerías incluidas en el repositorio: la app funciona sin CDN. -->
-  <script src="vendor/leaflet.js?v=18"></script>
-  <script src="vendor/xlsx.full.min.js?v=18"></script>
-  <script src="js/util.js?v=18"></script>
-  <script src="js/store.js?v=18"></script>
-  <script src="js/csv.js?v=18"></script>
-  <script src="js/geocode.js?v=18"></script>
-  <script src="js/routing.js?v=18"></script>
-  <script src="js/optimize.js?v=18"></script>
-  <script src="js/map.js?v=18"></script>
-  <script src="js/itinerary.js?v=18"></script>
-  <script src="js/clients.js?v=18"></script>
-  <script src="js/basemap-data.js?v=18"></script>
-  <script src="js/demo-data.js?v=18"></script>
-  <script src="js/app.js?v=18"></script>
+  <script src="vendor/leaflet.js?v=19"></script>
+  <script src="vendor/xlsx.full.min.js?v=19"></script>
+  <script src="js/util.js?v=19"></script>
+  <script src="js/store.js?v=19"></script>
+  <script src="js/csv.js?v=19"></script>
+  <script src="js/geocode.js?v=19"></script>
+  <script src="js/routing.js?v=19"></script>
+  <script src="js/optimize.js?v=19"></script>
+  <script src="js/map.js?v=19"></script>
+  <script src="js/itinerary.js?v=19"></script>
+  <script src="js/clients.js?v=19"></script>
+  <script src="js/basemap-data.js?v=19"></script>
+  <script src="js/demo-data.js?v=19"></script>
+  <script src="js/app.js?v=19"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function () {
