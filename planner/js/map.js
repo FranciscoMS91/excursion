@@ -38,9 +38,12 @@ window.BTP = window.BTP || {};
       attribution: OSM_ATTR + ' &copy; <a href="https://carto.com/attributions">CARTO</a>'
     },
     osm: {
-      name: 'OpenStreetMap (sólo servido por web)',
+      name: 'OpenStreetMap',
       url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
       subdomains: 'abc', maxZoom: 19,
+      // Sin retina: duplicar la resolución pide cuatro veces más teselas y es
+      // justo lo que hace saltar el bloqueo de sus servidores de voluntarios.
+      retina: false,
       attribution: OSM_ATTR
     }
   };
@@ -115,7 +118,9 @@ window.BTP = window.BTP || {};
     tileLayer = L.tileLayer(cfg.url, {
       subdomains: cfg.subdomains,
       maxZoom: cfg.maxZoom,
-      detectRetina: true,
+      detectRetina: cfg.retina !== false,
+      updateWhenIdle: true,   // no pedir teselas mientras se arrastra el mapa
+      keepBuffer: 1,          // menos teselas fuera de pantalla
       attribution: cfg.attribution
     });
     tileLayer.on('tileerror', function () {

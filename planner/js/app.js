@@ -475,8 +475,8 @@
   function init() {
     BTP.map.init('map', {
       onTileError: function (nombre) {
-        toast('El servidor de mapas «' + nombre + '» ha rechazado las teselas. ' +
-          'Cambia de proveedor en Datos → Mapa base.', 9000);
+        toast('«' + nombre + '» ha rechazado las teselas. En Datos → Mapa base puedes ' +
+          'cambiar a «Mapa propio», que funciona siempre.', 9000);
       },
       onEditClient: function (id) { BTP.clients.openEditor(id); },
       onTogglePin: function (id) {

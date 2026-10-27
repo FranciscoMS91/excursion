@@ -161,22 +161,25 @@ recalcula en menos de un segundo.
 |---|---|---|
 | [Nominatim](https://nominatim.openstreetmap.org) | Convertir direcciones en coordenadas | Al geocodificar; resultados en caché |
 | [OSRM](https://project-osrm.org) (servidor público de demostración) | Tiempos reales y trazado de las rutas | Al optimizar, si está activado |
-| Teselas de mapa (opcional) | Calles y carreteras de fondo | Sólo si eliges un proveedor con clave |
+| Teselas de OpenStreetMap | Calles y carreteras de fondo | Mapa base por defecto |
 
 La cartera **no sale del navegador**: no hay backend ni cuenta de usuario. Sólo se envían
 a esos servicios las direcciones a geocodificar y las coordenadas de las paradas.
 
-**Sobre el mapa base:** por defecto la app **no pide el mapa a ningún servidor**. Lleva
-dentro los contornos de la península y unas sesenta ciudades de referencia
-(`js/basemap-data.js`, generado a partir de Natural Earth, de dominio público), que es
-suficiente para planificar a escala de viaje y funciona siempre, incluso sin conexión.
+**Sobre el mapa base:** por defecto se usan las teselas de OpenStreetMap. Sus servidores
+los mantienen voluntarios y a veces responden «Access blocked» a aplicaciones que
+consideran fuera de su política de uso; pasa sobre todo abriendo el fichero con `file://`,
+porque el navegador no manda ningún origen. Para reducirlo, la app pide las teselas a
+resolución sencilla (sin retina, que multiplicaría por cuatro las peticiones) y sólo
+cuando el mapa se queda quieto.
 
-Los servicios públicos de teselas ya no sirven para este caso: los servidores de
-OpenStreetMap están mantenidos por voluntarios y bloquean las aplicaciones que no se
-identifican (devuelven «Access blocked», y cualquier fichero abierto con `file://` entra
-ahí), y CARTO exige clave desde hace tiempo. Si quieres ver calles y carreteras, en
-*Datos → Mapa base* eliges «Teselas con mi clave» y pegas la URL de un proveedor donde
-te hayas registrado; en MapTiler o Geoapify la clave gratuita se saca en dos minutos:
+Si aun así sale bloqueado, hay dos salidas en *Datos → Mapa base*:
+
+- **Mapa propio**: contornos de la península y unas sesenta ciudades incluidos en la app
+  (`js/basemap-data.js`, generado a partir de Natural Earth, de dominio público). No pide
+  nada a ningún servidor, así que funciona siempre, incluso sin conexión. No trae calles.
+- **Teselas con mi clave**: la opción con garantías para uso continuado. En MapTiler o
+  Geoapify la clave gratuita se saca en dos minutos:
 
 ```
 https://api.maptiler.com/maps/streets-v2/{z}/{x}/{y}.png?key=TU_CLAVE

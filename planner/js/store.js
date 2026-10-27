@@ -31,7 +31,7 @@ window.BTP = window.BTP || {};
     detour: 1.25,
     maxCandidates: 80,
     apptNearbyKm: 35,
-    tileProvider: 'offline',
+    tileProvider: 'osm',
     tileUrl: '',
     tileAttribution: '',
     wPriority: 1,

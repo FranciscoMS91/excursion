@@ -18,7 +18,7 @@
       <div>
         <h1>Planificador de viajes comerciales</h1>
         <p>Optimiza cada desplazamiento por la península ibérica
-          <span class="build-tag" id="build-tag">v1.3 · mapa propio sin internet</span>
+          <span class="build-tag" id="build-tag">v1.4 · OpenStreetMap, con mapa propio de reserva</span>
         </p>
       </div>
     </div>
@@ -169,9 +169,9 @@
           <label class="field full">
             <span>Proveedor de teselas</span>
             <select id="tileProvider">
-              <option value="offline">Mapa propio, sin internet (recomendado)</option>
+              <option value="osm">OpenStreetMap</option>
+              <option value="offline">Mapa propio, sin internet (siempre funciona)</option>
               <option value="custom">Teselas con mi clave…</option>
-              <option value="osm">OpenStreetMap (sólo servido por web)</option>
               <option value="voyager">Carto Voyager (requiere clave)</option>
               <option value="light">Carto claro (requiere clave)</option>
               <option value="dark">Carto oscuro (requiere clave)</option>
@@ -187,9 +187,10 @@
               <input id="tileAttribution" type="text" placeholder="© Proveedor" />
             </label>
           </div>
-          <small class="hint">El mapa propio lleva los contornos y las ciudades dentro de la aplicación: funciona
-            siempre, también sin internet. Para ver calles y carreteras hace falta un servicio de teselas, y
-            casi todos exigen ya una clave: saca una gratuita en MapTiler o Geoapify y pégala arriba, por
+          <small class="hint">Si OpenStreetMap muestra «Access blocked», sus servidores de voluntarios te han
+            limitado: suele ser temporal y se nota menos sirviendo la app por web en vez de abriendo el fichero.
+            Mientras tanto, «Mapa propio» funciona siempre y no pide nada a nadie. Para ver el callejero con
+            garantías, saca una clave gratuita en MapTiler o Geoapify y pégala como teselas propias, por
             ejemplo <code>https://api.maptiler.com/maps/streets-v2/{z}/{x}/{y}.png?key=TU_CLAVE</code>.</small>
         </div>
 
