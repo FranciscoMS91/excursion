@@ -1212,7 +1212,7 @@ a.mini { text-decoration: none; display: inline-flex; align-items: center; justi
       <div>
         <h1>Planificador de viajes comerciales</h1>
         <p>Optimiza cada desplazamiento por la península ibérica
-          <span class="build-tag" id="build-tag">v1.9 · fichero único 2026-10-27</span>
+          <span class="build-tag" id="build-tag">v2.0 · fichero único 2026-10-27</span>
         </p>
       </div>
     </div>
@@ -3314,7 +3314,14 @@ window.BTP = window.BTP || {};
     });
     tileLayer.on('tileerror', function () {
       errors++;
-      if (errors === 4 && handlers.onTileError) handlers.onTileError(cfg.name);
+      // Si el proveedor no responde (bloqueo o falta de cobertura), se pasa al
+      // mapa propio para no dejar el fondo en blanco. No se toca la preferencia
+      // guardada: al recargar con conexión se vuelve a intentar.
+      if (errors === 4) {
+        if (tileLayer) { map.removeLayer(tileLayer); tileLayer = null; }
+        drawOfflineBase();
+        if (handlers.onTileError) handlers.onTileError(cfg.name);
+      }
     });
     tileLayer.addTo(map);
   }
@@ -7295,8 +7302,8 @@ window.BTP = window.BTP || {};
   function init() {
     BTP.map.init('map', {
       onTileError: function (nombre) {
-        toast('«' + nombre + '» ha rechazado las teselas. En Datos → Mapa base puedes ' +
-          'cambiar a «Mapa propio», que funciona siempre.', 9000);
+        toast('Sin mapa de «' + nombre + '»: he puesto el mapa propio para que puedas seguir. ' +
+          'Lo cambias en Datos → Mapa base.', 9000);
       },
       onEditClient: function (id) { BTP.clients.openEditor(id); },
       onTogglePin: function (id) {
