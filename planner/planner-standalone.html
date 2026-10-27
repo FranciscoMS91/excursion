@@ -1128,7 +1128,7 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
       <div>
         <h1>Planificador de viajes comerciales</h1>
         <p>Optimiza cada desplazamiento por la península ibérica
-          <span class="build-tag" id="build-tag">v1.5 · citas desde Viaje · fichero único 2026-10-27</span>
+          <span class="build-tag" id="build-tag">v1.6 · citas con empresas nuevas · fichero único 2026-10-27</span>
         </p>
       </div>
     </div>
@@ -1198,10 +1198,14 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
 
           <div class="appt-add">
             <label class="field full">
-              <span>Cliente con el que has quedado</span>
-              <input id="appt-client" list="appt-clients" placeholder="Escribe para buscar en tu cartera…"
+              <span>Empresa con la que has quedado</span>
+              <input id="appt-client" list="appt-clients" placeholder="De tu cartera, o un nombre nuevo"
                 autocomplete="off" />
               <datalist id="appt-clients"></datalist>
+            </label>
+            <label class="field full">
+              <span>Dirección o ciudad</span>
+              <input id="appt-place" type="text" placeholder="Sólo si la empresa es nueva" autocomplete="off" />
             </label>
             <div class="grid3">
               <label class="field"><span>Fecha</span><input id="appt-date" type="date" /></label>
@@ -6722,43 +6726,94 @@ window.BTP = window.BTP || {};
     return parciales.length === 1 ? parciales[0] : null;
   }
 
-  function addAppointment() {
-    var msg = $('#appt-msg');
-    var c = findClientByLabel($('#appt-client').value);
-    var hora = $('#appt-time').value;
-    var fecha = $('#appt-date').value;
-    var dur = Number($('#appt-dur').value) || 0;
-
-    msg.className = 'appt-msg error';
-    if (!c) {
-      msg.textContent = 'No encuentro ese cliente. Elígelo del desplegable, o créalo antes en la pestaña Cartera.';
-      return;
-    }
-    if (!hora) { msg.textContent = 'Falta la hora de la reunión.'; return; }
-
-    c.apptDate = fecha;
-    c.apptTime = hora;
-    if (dur) c.duration = dur;
-    BTP.store.saveClients();
-
+  /** Avisos que no impiden guardar la cita, pero conviene ver. */
+  function apptWarnings(c, fecha, hora) {
     var avisos = [];
-    if (c.lat == null) avisos.push('no tiene coordenadas: geocodifícalo en Datos antes de optimizar');
+    if (c.lat == null) avisos.push('no he podido situarla en el mapa: revisa la dirección en Cartera');
     if (fecha) {
       var off = U.daysBetween(S.startDate, fecha);
       if (off !== null && (off < 0 || off >= Number(S.days))) {
         avisos.push('la fecha cae fuera de los ' + S.days + ' días del viaje');
       }
     }
-    msg.className = 'appt-msg' + (avisos.length ? ' error' : ' ok');
-    msg.textContent = avisos.length
-      ? 'Cita guardada, pero ' + avisos.join(' y ') + '.'
-      : 'Cita guardada. Pulsa «Optimizar viaje» para montar la agenda a su alrededor.';
+    var min = U.parseHM(hora);
+    if (min < U.parseHM(S.dayStart) || min > U.parseHM(S.dayEnd)) {
+      avisos.push('las ' + hora + ' quedan fuera de tu jornada (' + S.dayStart + '–' + S.dayEnd +
+        '); si te has equivocado de AM/PM, corrígelo');
+    }
+    return avisos;
+  }
 
-    $('#appt-client').value = '';
-    $('#appt-time').value = '';
-    $('#appt-dur').value = '';
-    refreshAll();
-    toast('Cita con ' + c.name + ' a las ' + hora);
+  function addAppointment() {
+    var msg = $('#appt-msg');
+    var btn = $('#btn-add-appt');
+    var nombre = $('#appt-client').value.trim();
+    var lugar = $('#appt-place').value.trim();
+    var hora = $('#appt-time').value;
+    var fecha = $('#appt-date').value;
+    var dur = Number($('#appt-dur').value) || 0;
+
+    msg.className = 'appt-msg error';
+    if (!nombre) { msg.textContent = 'Escribe con qué empresa has quedado.'; return; }
+    if (!hora) { msg.textContent = 'Falta la hora de la reunión.'; return; }
+
+    var c = findClientByLabel(nombre);
+    var esNueva = !c;
+    if (esNueva && !lugar) {
+      msg.textContent = '«' + nombre + '» no está en tu cartera. Añade su dirección o ciudad para poder situarla.';
+      return;
+    }
+
+    btn.disabled = true;
+    msg.className = 'appt-msg';
+    msg.textContent = esNueva ? 'Creando la ficha y buscando la dirección…' : 'Guardando…';
+
+    var listo;
+    if (esNueva) {
+      c = BTP.store.normalizeClient({
+        name: nombre.split(' · ')[0],
+        type: 'prospecto',
+        priority: 3,
+        address: lugar
+      });
+      // upsertClient devuelve la copia normalizada que queda guardada: hay que
+      // escribir la cita sobre ésa, no sobre el objeto original.
+      listo = BTP.geocode.geocodeClient(c).then(function () {
+        return BTP.store.upsertClient(c);
+      });
+    } else if (lugar && c.lat == null) {
+      c.address = lugar;
+      listo = BTP.geocode.geocodeClient(c).then(function () { return c; });
+    } else {
+      listo = Promise.resolve(c);
+    }
+
+    listo.then(function (cli) {
+      cli.apptDate = fecha;
+      cli.apptTime = hora;
+      if (dur) cli.duration = dur;
+      BTP.store.saveClients();
+
+      var avisos = apptWarnings(cli, fecha, hora);
+      msg.className = 'appt-msg' + (avisos.length ? ' error' : ' ok');
+      msg.textContent = (esNueva ? 'Añadida «' + cli.name + '» a tu cartera y guardada la cita. ' : 'Cita guardada. ') +
+        (avisos.length
+          ? 'Ojo: ' + avisos.join('; ') + '.'
+          : 'Pulsa «Optimizar viaje» para montar la agenda a su alrededor.');
+
+      $('#appt-client').value = '';
+      $('#appt-place').value = '';
+      $('#appt-time').value = '';
+      $('#appt-dur').value = '';
+      btn.disabled = false;
+      refreshAll();
+      if (cli.lat != null) BTP.map.flyTo(cli.lat, cli.lng, 11);
+      toast('Cita con ' + cli.name + ' a las ' + hora);
+    }).catch(function (err) {
+      btn.disabled = false;
+      msg.className = 'appt-msg error';
+      msg.textContent = 'No se ha podido guardar: ' + (err.message || err);
+    });
   }
 
   /** Listado de citas pactadas en el panel de control. */
