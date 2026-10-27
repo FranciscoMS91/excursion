@@ -90,6 +90,21 @@ restringen a HTTPS y localhost.
 8. **Exportar.** CSV del itinerario, fichero `.ics` para el calendario, enlace de Google
    Maps por jornada, o imprimir/guardar en PDF.
 
+### Pasar los datos a otro dispositivo
+
+Los datos viven en el navegador de cada dispositivo y **no se sincronizan solos**: la
+misma URL abierta en el ordenador y en el móvil son dos almacenes distintos, aunque sea
+la misma cuenta de Google.
+
+En *Datos → Pasar los datos a otro dispositivo*:
+
+- **Guardar copia** descarga un único `.json` con la cartera, las citas, los ajustes del
+  viaje y las direcciones ya localizadas (unos 60 KB con 91 empresas).
+- **Restaurar copia…** lo carga en el otro dispositivo. Si ya había datos, pregunta si
+  combinar o reemplazar.
+
+Como las coordenadas viajan en la copia, no hay que volver a geocodificar nada.
+
 ---
 
 ## Citas pactadas

@@ -1212,7 +1212,7 @@ a.mini { text-decoration: none; display: inline-flex; align-items: center; justi
       <div>
         <h1>Planificador de viajes comerciales</h1>
         <p>Optimiza cada desplazamiento por la península ibérica
-          <span class="build-tag" id="build-tag">v1.8 · fichero único 2026-10-27</span>
+          <span class="build-tag" id="build-tag">v1.9 · fichero único 2026-10-27</span>
         </p>
       </div>
     </div>
@@ -1431,9 +1431,23 @@ a.mini { text-decoration: none; display: inline-flex; align-items: center; justi
           <p class="muted small" id="storage-info"></p>
           <div class="row wrap">
             <button class="btn" id="btn-demo">Cargar ejemplo</button>
-            <button class="btn" id="btn-export-clients">Exportar cartera</button>
+            <button class="btn" id="btn-export-clients">Exportar cartera (CSV)</button>
             <button class="btn danger" id="btn-clear-clients">Vaciar cartera</button>
           </div>
+        </div>
+
+        <div class="group">
+          <h2>Pasar los datos a otro dispositivo</h2>
+          <p class="muted small">Los datos viven en este navegador y no se sincronizan solos.
+            Esta copia lleva la cartera, las citas, los ajustes del viaje y las direcciones ya
+            localizadas, en un único fichero.</p>
+          <input type="file" id="backup-input" accept=".json,application/json" hidden />
+          <div class="row wrap">
+            <button class="btn primary" id="btn-backup">Guardar copia</button>
+            <button class="btn" id="btn-restore">Restaurar copia…</button>
+          </div>
+          <small class="hint">Guarda la copia, mándatela por correo o WhatsApp, ábrela en el móvil
+            y pulsa «Restaurar copia».</small>
         </div>
       </section>
     </aside>
@@ -1853,8 +1867,60 @@ window.BTP = window.BTP || {};
     saveClients();
   }
 
+  /** Copia completa: cartera, ajustes y caché de direcciones. */
+  function exportBackup() {
+    return JSON.stringify({
+      formato: 'planificador-viajes',
+      version: 1,
+      fecha: new Date().toISOString(),
+      clientes: state.clients,
+      ajustes: state.settings,
+      geocache: state.geocache
+    }, null, 1);
+  }
+
+  /**
+   * Restaura una copia. modo 'reemplazar' borra lo que haya; 'combinar'
+   * añade los clientes nuevos y actualiza los que coincidan.
+   * Devuelve un resumen, o lanza un error si el fichero no es válido.
+   */
+  function importBackup(texto, modo) {
+    var datos;
+    try {
+      datos = JSON.parse(texto);
+    } catch (e) {
+      throw new Error('El fichero no es una copia válida (no se puede leer).');
+    }
+    if (!datos || datos.formato !== 'planificador-viajes' || !Array.isArray(datos.clientes)) {
+      throw new Error('Ese fichero no es una copia de este planificador.');
+    }
+
+    if (modo === 'reemplazar') {
+      state.clients = [];
+      saveClients();
+    }
+    var res = addClients(datos.clientes);
+
+    if (datos.ajustes) {
+      Object.keys(DEFAULT_SETTINGS).forEach(function (k) {
+        if (datos.ajustes[k] !== undefined) state.settings[k] = datos.ajustes[k];
+      });
+      saveSettings();
+    }
+    if (datos.geocache) {
+      Object.keys(datos.geocache).forEach(function (k) {
+        if (!state.geocache[k]) state.geocache[k] = datos.geocache[k];
+      });
+      saveGeocache();
+    }
+    res.fecha = datos.fecha || '';
+    return res;
+  }
+
   BTP.store = {
     state: state,
+    exportBackup: exportBackup,
+    importBackup: importBackup,
     DEFAULT_SETTINGS: DEFAULT_SETTINGS,
     saveClients: saveClients,
     saveSettings: saveSettings,
@@ -2834,10 +2900,13 @@ window.BTP = window.BTP || {};
   }
 
   /**
-   * Inserta el nodo en la posición más barata que no descarte visitas ni
-   * rompa ninguna cita. Devuelve la nueva secuencia, o null si no cabe.
+   * Inserta el nodo en la posición más barata que no empeore la agenda.
+   * Se compara contra la situación de partida en lugar de exigir cero
+   * problemas: una cita imposible de cumplir (por ejemplo con la fecha
+   * fuera del viaje) no debe impedir que se planifique todo lo demás.
    */
   function insertFeasible(seq, node, ctx, maxTries) {
+    var base = simulate(seq, ctx);
     var opts = [];
     for (var pos = 0; pos <= seq.length; pos++) {
       opts.push({ pos: pos, cost: insertionCost(seq, pos, node, ctx) });
@@ -2848,7 +2917,10 @@ window.BTP = window.BTP || {};
       var trial = seq.slice();
       trial.splice(opts[i].pos, 0, node);
       var sim = simulate(trial, ctx);
-      if (!sim.dropped.length && !sim.conflicts.length) return trial;
+      if (sim.dropped.indexOf(node) >= 0) continue;           // no ha entrado
+      if (sim.dropped.length > base.dropped.length) continue;  // ha echado a otra
+      if (sim.conflicts.length > base.conflicts.length) continue;
+      return trial;
     }
     return null;
   }
@@ -7149,6 +7221,46 @@ window.BTP = window.BTP || {};
       refreshAll();
       toast('Cargadas ' + res.added + ' empresas de ejemplo');
       BTP.map.fitTo(BTP.store.state.clients);
+    });
+
+    $('#btn-backup').addEventListener('click', function () {
+      var n = BTP.store.state.clients.length;
+      var hoy = U.todayISO();
+      U.download('planificador-copia-' + hoy + '.json', BTP.store.exportBackup(), 'application/json');
+      toast('Copia guardada con ' + n + ' empresas. Mándatela al otro dispositivo y restáurala allí.', 6000);
+    });
+
+    $('#btn-restore').addEventListener('click', function () { $('#backup-input').click(); });
+    $('#backup-input').addEventListener('change', function (e) {
+      var file = e.target.files[0];
+      e.target.value = '';
+      if (!file) return;
+      var r = new FileReader();
+      r.onload = function () {
+        var hay = BTP.store.state.clients.length;
+        var modo = 'reemplazar';
+        if (hay) {
+          modo = confirm('Ya tienes ' + hay + ' empresas en este dispositivo.\n\n' +
+            'Aceptar: combinar la copia con lo que hay.\n' +
+            'Cancelar: reemplazarlo todo por la copia.') ? 'combinar' : 'reemplazar';
+        }
+        try {
+          var res = BTP.store.importBackup(r.result, modo);
+          S = BTP.store.state.settings;
+          bindForm();
+          refreshAll();
+          plan = null;
+          renderItinerary();
+          BTP.map.renderPlan(null);
+          BTP.map.setTiles(S);
+          BTP.map.fitTo(BTP.store.state.clients.filter(function (c) { return c.lat != null; }));
+          toast('Copia restaurada: ' + res.added + ' empresas nuevas y ' + res.updated + ' actualizadas.', 6000);
+        } catch (err) {
+          alert(err.message);
+        }
+      };
+      r.onerror = function () { alert('No se ha podido leer el fichero.'); };
+      r.readAsText(file, 'utf-8');
     });
 
     $('#btn-export-clients').addEventListener('click', function () {
