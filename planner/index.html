@@ -18,7 +18,7 @@
       <div>
         <h1>Planificador de viajes comerciales</h1>
         <p>Optimiza cada desplazamiento por la península ibérica
-          <span class="build-tag" id="build-tag">v1.2 · citas pactadas + mapa Carto</span>
+          <span class="build-tag" id="build-tag">v1.3 · mapa propio sin internet</span>
         </p>
       </div>
     </div>
@@ -169,11 +169,12 @@
           <label class="field full">
             <span>Proveedor de teselas</span>
             <select id="tileProvider">
-              <option value="voyager">Carto Voyager (color)</option>
-              <option value="light">Carto claro (sobrio)</option>
-              <option value="dark">Carto oscuro</option>
+              <option value="offline">Mapa propio, sin internet (recomendado)</option>
+              <option value="custom">Teselas con mi clave…</option>
               <option value="osm">OpenStreetMap (sólo servido por web)</option>
-              <option value="custom">Personalizado…</option>
+              <option value="voyager">Carto Voyager (requiere clave)</option>
+              <option value="light">Carto claro (requiere clave)</option>
+              <option value="dark">Carto oscuro (requiere clave)</option>
             </select>
           </label>
           <div id="tile-custom" class="hidden">
@@ -186,9 +187,10 @@
               <input id="tileAttribution" type="text" placeholder="© Proveedor" />
             </label>
           </div>
-          <small class="hint">Los servidores de OpenStreetMap son voluntarios y bloquean las apps que no se
-            identifican, incluido todo lo que se abra con doble clic sobre el fichero. Para uso comercial
-            intensivo, saca una clave gratuita en MapTiler o Geoapify y pégala aquí como proveedor personalizado.</small>
+          <small class="hint">El mapa propio lleva los contornos y las ciudades dentro de la aplicación: funciona
+            siempre, también sin internet. Para ver calles y carreteras hace falta un servicio de teselas, y
+            casi todos exigen ya una clave: saca una gratuita en MapTiler o Geoapify y pégala arriba, por
+            ejemplo <code>https://api.maptiler.com/maps/streets-v2/{z}/{x}/{y}.png?key=TU_CLAVE</code>.</small>
         </div>
 
         <div class="group">
@@ -252,6 +254,7 @@
   <script src="js/map.js"></script>
   <script src="js/itinerary.js"></script>
   <script src="js/clients.js"></script>
+  <script src="js/basemap-data.js"></script>
   <script src="js/demo-data.js"></script>
   <script src="js/app.js"></script>
 </body>

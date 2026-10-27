@@ -20,19 +20,19 @@ window.BTP = window.BTP || {};
      abra con file://), así que por defecto se usa CARTO. */
   var TILES = {
     voyager: {
-      name: 'Carto Voyager (color)',
+      name: 'Carto Voyager (necesita clave)',
       url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
       subdomains: 'abcd', maxZoom: 20,
       attribution: OSM_ATTR + ' &copy; <a href="https://carto.com/attributions">CARTO</a>'
     },
     light: {
-      name: 'Carto claro (sobrio)',
+      name: 'Carto claro (necesita clave)',
       url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
       subdomains: 'abcd', maxZoom: 20,
       attribution: OSM_ATTR + ' &copy; <a href="https://carto.com/attributions">CARTO</a>'
     },
     dark: {
-      name: 'Carto oscuro',
+      name: 'Carto oscuro (necesita clave)',
       url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
       subdomains: 'abcd', maxZoom: 20,
       attribution: OSM_ATTR + ' &copy; <a href="https://carto.com/attributions">CARTO</a>'
@@ -44,6 +44,47 @@ window.BTP = window.BTP || {};
       attribution: OSM_ATTR
     }
   };
+
+  /* Mapa base propio: no pide nada a ningún servidor. */
+  function drawOfflineBase() {
+    if (layers.base) { map.removeLayer(layers.base); layers.base = null; }
+    if (!BTP.basemap) return;
+    layers.base = L.layerGroup().addTo(map);
+
+    L.geoJSON(BTP.basemap.tierra, {
+      style: function (f) {
+        var esIberia = f.properties.name === 'Spain' || f.properties.name === 'Portugal' ||
+          f.properties.name === 'Andorra' || f.properties.name === 'Gibraltar';
+        return {
+          color: esIberia ? '#b9c6d8' : '#cfd8e3',
+          weight: 1,
+          fillColor: esIberia ? '#eef2f7' : '#e6eaf0',
+          fillOpacity: 1,
+          interactive: false
+        };
+      }
+    }).addTo(layers.base);
+
+    var etiquetas = L.layerGroup().addTo(layers.base);
+    function pintaCiudades() {
+      etiquetas.clearLayers();
+      var z = map.getZoom();
+      var limite = z >= 9 ? 3 : (z >= 7 ? 2 : 1);
+      BTP.basemap.ciudades.forEach(function (c) {
+        if (c.r > limite) return;
+        L.marker([c.lat, c.lng], {
+          interactive: false,
+          icon: L.divIcon({
+            className: 'btp-city',
+            html: '<i></i><span>' + U.escapeHtml(c.n) + '</span>',
+            iconSize: [0, 0]
+          })
+        }).addTo(etiquetas);
+      });
+    }
+    pintaCiudades();
+    map.on('zoomend', pintaCiudades);
+  }
 
   function tileConfig(settings) {
     if (settings.tileProvider === 'custom' && settings.tileUrl) {
@@ -61,7 +102,14 @@ window.BTP = window.BTP || {};
   /** Cambia el mapa base sin recrear el resto de capas. */
   function setTiles(settings) {
     if (!map) return;
-    if (tileLayer) map.removeLayer(tileLayer);
+    if (tileLayer) { map.removeLayer(tileLayer); tileLayer = null; }
+
+    if (settings.tileProvider === 'offline' || !settings.tileProvider) {
+      drawOfflineBase();
+      return;
+    }
+    if (layers.base) { map.removeLayer(layers.base); layers.base = null; }
+
     var cfg = tileConfig(settings);
     var errors = 0;
     tileLayer = L.tileLayer(cfg.url, {

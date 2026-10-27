@@ -161,17 +161,26 @@ recalcula en menos de un segundo.
 |---|---|---|
 | [Nominatim](https://nominatim.openstreetmap.org) | Convertir direcciones en coordenadas | Al geocodificar; resultados en caché |
 | [OSRM](https://project-osrm.org) (servidor público de demostración) | Tiempos reales y trazado de las rutas | Al optimizar, si está activado |
-| [CARTO basemaps](https://carto.com/attributions) | Fondo del mapa (por defecto) | Siempre que el mapa esté visible |
+| Teselas de mapa (opcional) | Calles y carreteras de fondo | Sólo si eliges un proveedor con clave |
 
 La cartera **no sale del navegador**: no hay backend ni cuenta de usuario. Sólo se envían
 a esos servicios las direcciones a geocodificar y las coordenadas de las paradas.
 
-**Sobre el mapa base:** los servidores de teselas de OpenStreetMap están mantenidos por
-voluntarios y su política rechaza las aplicaciones que no se identifican, incluido
-cualquier fichero abierto con `file://`; devuelven un 403 «Access blocked». Por eso el
-proveedor por defecto es CARTO, que funciona sin clave. En *Datos → Mapa base* puedes
-elegir otro estilo o poner tu propia URL de teselas: si vas a darle uso comercial
-intensivo, saca una clave gratuita en MapTiler o Geoapify y pégala ahí.
+**Sobre el mapa base:** por defecto la app **no pide el mapa a ningún servidor**. Lleva
+dentro los contornos de la península y unas sesenta ciudades de referencia
+(`js/basemap-data.js`, generado a partir de Natural Earth, de dominio público), que es
+suficiente para planificar a escala de viaje y funciona siempre, incluso sin conexión.
+
+Los servicios públicos de teselas ya no sirven para este caso: los servidores de
+OpenStreetMap están mantenidos por voluntarios y bloquean las aplicaciones que no se
+identifican (devuelven «Access blocked», y cualquier fichero abierto con `file://` entra
+ahí), y CARTO exige clave desde hace tiempo. Si quieres ver calles y carreteras, en
+*Datos → Mapa base* eliges «Teselas con mi clave» y pegas la URL de un proveedor donde
+te hayas registrado; en MapTiler o Geoapify la clave gratuita se saca en dos minutos:
+
+```
+https://api.maptiler.com/maps/streets-v2/{z}/{x}/{y}.png?key=TU_CLAVE
+```
 
 Ambos son servicios públicos gratuitos con límites de uso pensados para volúmenes
 pequeños. Para uso intensivo conviene levantar una instancia propia de OSRM/Nominatim y
@@ -187,8 +196,11 @@ cambiar la URL en `js/routing.js` y `js/geocode.js`.
   instante fijo, no un rango.
 - El reparto por días asume que se pernocta en la última parada del día (o junto a la cita
   del día siguiente, si hace falta desplazarse la tarde anterior); no busca hotel.
-- Si no hay conexión, la app sigue funcionando con tiempos estimados, pero el fondo del
-  mapa aparecerá en blanco y no se podrán geocodificar direcciones nuevas.
+- Sin conexión la app sigue siendo utilizable: mapa base propio y tiempos estimados. Lo
+  que no funciona es geocodificar direcciones nuevas ni obtener tiempos reales de
+  carretera.
+- El mapa base propio tiene contornos y ciudades, no calles: para ver el callejero hace
+  falta un proveedor de teselas con clave.
 
 ---
 
@@ -208,6 +220,7 @@ planner/
 │   ├── map.js              Capas de Leaflet
 │   ├── itinerary.js        Panel de itinerario y exportaciones (CSV, ICS, Maps)
 │   ├── clients.js          Cartera: listado, ficha e importación
+│   ├── basemap-data.js     Contornos y ciudades del mapa propio
 │   ├── demo-data.js        91 empresas ficticias de ejemplo
 │   └── app.js              Arranque y conexión entre piezas
 ├── vendor/                 Leaflet y SheetJS incluidos (funciona sin CDN)
