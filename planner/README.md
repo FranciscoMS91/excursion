@@ -57,9 +57,10 @@ restringen a HTTPS y localhost.
 4. **Viaje → Calendario y filtros.** Días de viaje, horario de jornada, duración media de
    visita, pausa de comida, y a quién quieres ver (tipo, prioridad, sector, etiqueta,
    tiempo sin visitar).
-5. **Citas ya pactadas.** Si tienes una reunión cerrada, abre ese cliente en *Cartera* y
-   rellena «Cita pactada» con la fecha y la hora. Esa visita queda clavada a esa hora y
-   todo lo demás se organiza a su alrededor (ver más abajo).
+5. **Citas ya pactadas.** En la propia pestaña *Viaje* tienes el apartado «Citas ya
+   pactadas»: eliges el cliente del desplegable, pones fecha, hora y duración, y pulsas
+   *Añadir cita pactada*. Esa visita queda clavada a esa hora y todo lo demás se organiza
+   a su alrededor (ver más abajo). También puedes rellenarlo desde la ficha del cliente.
 6. **Optimizar viaje.** La app calcula la ruta y reparte las visitas por jornadas.
 7. **Ajustar.** Arrastra las visitas para reordenarlas, quítalas con ✕, o marca alguna
    como obligatoria (☆) para que siempre entre en el plan. Cada cambio recalcula horarios

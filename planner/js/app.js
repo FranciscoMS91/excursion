@@ -275,10 +275,83 @@
     });
   }
 
+  /** Etiqueta única por cliente para el desplegable de búsqueda. */
+  function apptLabel(c) {
+    return c.name + (c.city ? ' · ' + c.city : '');
+  }
+
+  /** Rellena el desplegable con la cartera actual. */
+  function refreshApptPicker() {
+    var dl = $('#appt-clients');
+    if (!dl) return;
+    dl.innerHTML = '';
+    BTP.store.state.clients.slice()
+      .sort(function (a, b) { return a.name.localeCompare(b.name, 'es'); })
+      .forEach(function (c) {
+        if (BTP.store.hasAppointment(c)) return;   // ya tiene cita
+        dl.appendChild(U.el('option', { value: apptLabel(c) }));
+      });
+  }
+
+  function findClientByLabel(texto) {
+    var buscado = U.norm(texto);
+    if (!buscado) return null;
+    var lista = BTP.store.state.clients;
+    var i;
+    for (i = 0; i < lista.length; i++) {
+      if (U.norm(apptLabel(lista[i])) === buscado) return lista[i];
+    }
+    for (i = 0; i < lista.length; i++) {
+      if (U.norm(lista[i].name) === buscado) return lista[i];
+    }
+    var parciales = lista.filter(function (c) { return U.norm(c.name).indexOf(buscado) >= 0; });
+    return parciales.length === 1 ? parciales[0] : null;
+  }
+
+  function addAppointment() {
+    var msg = $('#appt-msg');
+    var c = findClientByLabel($('#appt-client').value);
+    var hora = $('#appt-time').value;
+    var fecha = $('#appt-date').value;
+    var dur = Number($('#appt-dur').value) || 0;
+
+    msg.className = 'appt-msg error';
+    if (!c) {
+      msg.textContent = 'No encuentro ese cliente. Elígelo del desplegable, o créalo antes en la pestaña Cartera.';
+      return;
+    }
+    if (!hora) { msg.textContent = 'Falta la hora de la reunión.'; return; }
+
+    c.apptDate = fecha;
+    c.apptTime = hora;
+    if (dur) c.duration = dur;
+    BTP.store.saveClients();
+
+    var avisos = [];
+    if (c.lat == null) avisos.push('no tiene coordenadas: geocodifícalo en Datos antes de optimizar');
+    if (fecha) {
+      var off = U.daysBetween(S.startDate, fecha);
+      if (off !== null && (off < 0 || off >= Number(S.days))) {
+        avisos.push('la fecha cae fuera de los ' + S.days + ' días del viaje');
+      }
+    }
+    msg.className = 'appt-msg' + (avisos.length ? ' error' : ' ok');
+    msg.textContent = avisos.length
+      ? 'Cita guardada, pero ' + avisos.join(' y ') + '.'
+      : 'Cita guardada. Pulsa «Optimizar viaje» para montar la agenda a su alrededor.';
+
+    $('#appt-client').value = '';
+    $('#appt-time').value = '';
+    $('#appt-dur').value = '';
+    refreshAll();
+    toast('Cita con ' + c.name + ' a las ' + hora);
+  }
+
   /** Listado de citas pactadas en el panel de control. */
   function renderAppointments() {
     var box = $('#appt-list');
     box.innerHTML = '';
+    refreshApptPicker();
     var withAppt = BTP.store.state.clients.filter(BTP.store.hasAppointment)
       .sort(function (a, b) {
         return (a.apptDate || '9999').localeCompare(b.apptDate || '9999') ||
@@ -286,10 +359,7 @@
       });
 
     if (!withAppt.length) {
-      box.appendChild(U.el('div', {
-        class: 'muted small',
-        text: 'Ninguna. Abre un cliente en la pestaña Cartera y rellena «Cita pactada».'
-      }));
+      box.appendChild(U.el('div', { class: 'muted small', text: 'Todavía no has apuntado ninguna.' }));
       return;
     }
 
@@ -386,6 +456,10 @@
 
   function bindActions() {
     $('#btn-optimize').addEventListener('click', optimize);
+    $('#btn-add-appt').addEventListener('click', addAppointment);
+    $('#appt-client').addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { e.preventDefault(); $('#appt-time').focus(); }
+    });
 
     $('#client-search').addEventListener('input', U.debounce(function () {
       BTP.clients.renderList($('#client-list'), $('#client-search').value);

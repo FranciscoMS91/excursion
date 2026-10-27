@@ -1107,6 +1107,17 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
   text-shadow: 0 0 3px #fff, 0 0 3px #fff, 0 0 3px #fff;
 }
 
+/* Alta rápida de citas pactadas */
+.grid3 { display: grid; grid-template-columns: 1.2fr 1fr 0.7fr; gap: 0 8px; }
+.appt-add {
+  margin-top: 10px; padding: 10px;
+  border: 1px solid var(--line); border-radius: var(--radius); background: #f8fafc;
+}
+.appt-add .btn { width: 100%; }
+.appt-msg { font-size: 11px; margin-top: 6px; min-height: 14px; }
+.appt-msg.ok { color: #15803d; }
+.appt-msg.error { color: #b45309; }
+
 </style>
 </head>
 
@@ -1117,7 +1128,7 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
       <div>
         <h1>Planificador de viajes comerciales</h1>
         <p>Optimiza cada desplazamiento por la península ibérica
-          <span class="build-tag" id="build-tag">v1.4 · OpenStreetMap · fichero único 2026-10-27</span>
+          <span class="build-tag" id="build-tag">v1.5 · citas desde Viaje · fichero único 2026-10-27</span>
         </p>
       </div>
     </div>
@@ -1181,9 +1192,27 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
 
         <div class="group">
           <h2>Citas ya pactadas</h2>
-          <p class="muted small">Visitas con hora cerrada. La agenda se construye alrededor de ellas y la app
-            te propone qué más ver cerca. Se marcan en la ficha de cada cliente.</p>
+          <p class="muted small">Visitas con hora cerrada. La agenda se construye alrededor de ellas, se duerme
+            cerca si hace falta y la app te propone qué más ver en los huecos.</p>
           <div id="appt-list" class="appt-list"></div>
+
+          <div class="appt-add">
+            <label class="field full">
+              <span>Cliente con el que has quedado</span>
+              <input id="appt-client" list="appt-clients" placeholder="Escribe para buscar en tu cartera…"
+                autocomplete="off" />
+              <datalist id="appt-clients"></datalist>
+            </label>
+            <div class="grid3">
+              <label class="field"><span>Fecha</span><input id="appt-date" type="date" /></label>
+              <label class="field"><span>Hora</span><input id="appt-time" type="time" /></label>
+              <label class="field"><span>Minutos</span>
+                <input id="appt-dur" type="number" min="15" max="480" step="15" placeholder="60" /></label>
+            </div>
+            <button class="btn primary" id="btn-add-appt">Añadir cita pactada</button>
+            <div class="appt-msg" id="appt-msg"></div>
+          </div>
+
           <label class="field full" style="margin-top:10px">
             <span>Buscar visitas hasta <b id="apptNearbyKm-val">35</b> km alrededor de cada cita</span>
             <input id="apptNearbyKm" type="range" min="5" max="120" step="5" value="35" />
@@ -1211,23 +1240,7 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
           </div>
         </div>
 
-        <details class="group">
-          <summary><h2>Criterio de priorización</h2></summary>
-          <label class="field full"><span>Peso de la prioridad: <b id="wPriority-val">1</b></span>
-            <input id="wPriority" type="range" min="0" max="3" step="0.1" value="1" /></label>
-          <label class="field full"><span>Peso del valor potencial: <b id="wValue-val">1</b></span>
-            <input id="wValue" type="range" min="0" max="3" step="0.1" value="1" /></label>
-          <label class="field full"><span>Peso del tiempo sin visitar: <b id="wRecency-val">0.6</b></span>
-            <input id="wRecency" type="range" min="0" max="3" step="0.1" value="0.6" /></label>
-          <label class="field full"><span>Enfoque: <b id="prospectBias-val">equilibrado</b></span>
-            <input id="prospectBias" type="range" min="-1" max="1" step="0.1" value="0" />
-            <small class="hint">A la izquierda prioriza fidelizar clientes; a la derecha, captar prospectos.</small>
-          </label>
-          <label class="field full"><span>Máx. paradas candidatas a evaluar</span>
-            <input id="maxCandidates" type="number" min="10" max="95" step="5" value="80" />
-            <small class="hint">Más candidatas = mejor plan pero cálculo más lento (límite de OSRM: 95).</small>
-          </label>
-        </details>
+        
 
         <div class="actions">
           <button class="btn primary big" id="btn-optimize">Optimizar viaje</button>
@@ -1302,6 +1315,24 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
           </div>
           <small class="hint">Se usan si OSRM no está disponible (sin conexión o demasiadas paradas).</small>
         </div>
+
+<details class="group">
+          <summary><h2>Criterio de priorización</h2></summary>
+          <label class="field full"><span>Peso de la prioridad: <b id="wPriority-val">1</b></span>
+            <input id="wPriority" type="range" min="0" max="3" step="0.1" value="1" /></label>
+          <label class="field full"><span>Peso del valor potencial: <b id="wValue-val">1</b></span>
+            <input id="wValue" type="range" min="0" max="3" step="0.1" value="1" /></label>
+          <label class="field full"><span>Peso del tiempo sin visitar: <b id="wRecency-val">0.6</b></span>
+            <input id="wRecency" type="range" min="0" max="3" step="0.1" value="0.6" /></label>
+          <label class="field full"><span>Enfoque: <b id="prospectBias-val">equilibrado</b></span>
+            <input id="prospectBias" type="range" min="-1" max="1" step="0.1" value="0" />
+            <small class="hint">A la izquierda prioriza fidelizar clientes; a la derecha, captar prospectos.</small>
+          </label>
+          <label class="field full"><span>Máx. paradas candidatas a evaluar</span>
+            <input id="maxCandidates" type="number" min="10" max="95" step="5" value="80" />
+            <small class="hint">Más candidatas = mejor plan pero cálculo más lento (límite de OSRM: 95).</small>
+          </label>
+        </details>
 
         <div class="group">
           <h2>Datos guardados</h2>
@@ -6658,10 +6689,83 @@ window.BTP = window.BTP || {};
     });
   }
 
+  /** Etiqueta única por cliente para el desplegable de búsqueda. */
+  function apptLabel(c) {
+    return c.name + (c.city ? ' · ' + c.city : '');
+  }
+
+  /** Rellena el desplegable con la cartera actual. */
+  function refreshApptPicker() {
+    var dl = $('#appt-clients');
+    if (!dl) return;
+    dl.innerHTML = '';
+    BTP.store.state.clients.slice()
+      .sort(function (a, b) { return a.name.localeCompare(b.name, 'es'); })
+      .forEach(function (c) {
+        if (BTP.store.hasAppointment(c)) return;   // ya tiene cita
+        dl.appendChild(U.el('option', { value: apptLabel(c) }));
+      });
+  }
+
+  function findClientByLabel(texto) {
+    var buscado = U.norm(texto);
+    if (!buscado) return null;
+    var lista = BTP.store.state.clients;
+    var i;
+    for (i = 0; i < lista.length; i++) {
+      if (U.norm(apptLabel(lista[i])) === buscado) return lista[i];
+    }
+    for (i = 0; i < lista.length; i++) {
+      if (U.norm(lista[i].name) === buscado) return lista[i];
+    }
+    var parciales = lista.filter(function (c) { return U.norm(c.name).indexOf(buscado) >= 0; });
+    return parciales.length === 1 ? parciales[0] : null;
+  }
+
+  function addAppointment() {
+    var msg = $('#appt-msg');
+    var c = findClientByLabel($('#appt-client').value);
+    var hora = $('#appt-time').value;
+    var fecha = $('#appt-date').value;
+    var dur = Number($('#appt-dur').value) || 0;
+
+    msg.className = 'appt-msg error';
+    if (!c) {
+      msg.textContent = 'No encuentro ese cliente. Elígelo del desplegable, o créalo antes en la pestaña Cartera.';
+      return;
+    }
+    if (!hora) { msg.textContent = 'Falta la hora de la reunión.'; return; }
+
+    c.apptDate = fecha;
+    c.apptTime = hora;
+    if (dur) c.duration = dur;
+    BTP.store.saveClients();
+
+    var avisos = [];
+    if (c.lat == null) avisos.push('no tiene coordenadas: geocodifícalo en Datos antes de optimizar');
+    if (fecha) {
+      var off = U.daysBetween(S.startDate, fecha);
+      if (off !== null && (off < 0 || off >= Number(S.days))) {
+        avisos.push('la fecha cae fuera de los ' + S.days + ' días del viaje');
+      }
+    }
+    msg.className = 'appt-msg' + (avisos.length ? ' error' : ' ok');
+    msg.textContent = avisos.length
+      ? 'Cita guardada, pero ' + avisos.join(' y ') + '.'
+      : 'Cita guardada. Pulsa «Optimizar viaje» para montar la agenda a su alrededor.';
+
+    $('#appt-client').value = '';
+    $('#appt-time').value = '';
+    $('#appt-dur').value = '';
+    refreshAll();
+    toast('Cita con ' + c.name + ' a las ' + hora);
+  }
+
   /** Listado de citas pactadas en el panel de control. */
   function renderAppointments() {
     var box = $('#appt-list');
     box.innerHTML = '';
+    refreshApptPicker();
     var withAppt = BTP.store.state.clients.filter(BTP.store.hasAppointment)
       .sort(function (a, b) {
         return (a.apptDate || '9999').localeCompare(b.apptDate || '9999') ||
@@ -6669,10 +6773,7 @@ window.BTP = window.BTP || {};
       });
 
     if (!withAppt.length) {
-      box.appendChild(U.el('div', {
-        class: 'muted small',
-        text: 'Ninguna. Abre un cliente en la pestaña Cartera y rellena «Cita pactada».'
-      }));
+      box.appendChild(U.el('div', { class: 'muted small', text: 'Todavía no has apuntado ninguna.' }));
       return;
     }
 
@@ -6769,6 +6870,10 @@ window.BTP = window.BTP || {};
 
   function bindActions() {
     $('#btn-optimize').addEventListener('click', optimize);
+    $('#btn-add-appt').addEventListener('click', addAppointment);
+    $('#appt-client').addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { e.preventDefault(); $('#appt-time').focus(); }
+    });
 
     $('#client-search').addEventListener('input', U.debounce(function () {
       BTP.clients.renderList($('#client-list'), $('#client-search').value);

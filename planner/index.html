@@ -18,7 +18,7 @@
       <div>
         <h1>Planificador de viajes comerciales</h1>
         <p>Optimiza cada desplazamiento por la península ibérica
-          <span class="build-tag" id="build-tag">v1.4 · OpenStreetMap, con mapa propio de reserva</span>
+          <span class="build-tag" id="build-tag">v1.5 · citas desde la pestaña Viaje</span>
         </p>
       </div>
     </div>
@@ -82,9 +82,27 @@
 
         <div class="group">
           <h2>Citas ya pactadas</h2>
-          <p class="muted small">Visitas con hora cerrada. La agenda se construye alrededor de ellas y la app
-            te propone qué más ver cerca. Se marcan en la ficha de cada cliente.</p>
+          <p class="muted small">Visitas con hora cerrada. La agenda se construye alrededor de ellas, se duerme
+            cerca si hace falta y la app te propone qué más ver en los huecos.</p>
           <div id="appt-list" class="appt-list"></div>
+
+          <div class="appt-add">
+            <label class="field full">
+              <span>Cliente con el que has quedado</span>
+              <input id="appt-client" list="appt-clients" placeholder="Escribe para buscar en tu cartera…"
+                autocomplete="off" />
+              <datalist id="appt-clients"></datalist>
+            </label>
+            <div class="grid3">
+              <label class="field"><span>Fecha</span><input id="appt-date" type="date" /></label>
+              <label class="field"><span>Hora</span><input id="appt-time" type="time" /></label>
+              <label class="field"><span>Minutos</span>
+                <input id="appt-dur" type="number" min="15" max="480" step="15" placeholder="60" /></label>
+            </div>
+            <button class="btn primary" id="btn-add-appt">Añadir cita pactada</button>
+            <div class="appt-msg" id="appt-msg"></div>
+          </div>
+
           <label class="field full" style="margin-top:10px">
             <span>Buscar visitas hasta <b id="apptNearbyKm-val">35</b> km alrededor de cada cita</span>
             <input id="apptNearbyKm" type="range" min="5" max="120" step="5" value="35" />
@@ -112,23 +130,7 @@
           </div>
         </div>
 
-        <details class="group">
-          <summary><h2>Criterio de priorización</h2></summary>
-          <label class="field full"><span>Peso de la prioridad: <b id="wPriority-val">1</b></span>
-            <input id="wPriority" type="range" min="0" max="3" step="0.1" value="1" /></label>
-          <label class="field full"><span>Peso del valor potencial: <b id="wValue-val">1</b></span>
-            <input id="wValue" type="range" min="0" max="3" step="0.1" value="1" /></label>
-          <label class="field full"><span>Peso del tiempo sin visitar: <b id="wRecency-val">0.6</b></span>
-            <input id="wRecency" type="range" min="0" max="3" step="0.1" value="0.6" /></label>
-          <label class="field full"><span>Enfoque: <b id="prospectBias-val">equilibrado</b></span>
-            <input id="prospectBias" type="range" min="-1" max="1" step="0.1" value="0" />
-            <small class="hint">A la izquierda prioriza fidelizar clientes; a la derecha, captar prospectos.</small>
-          </label>
-          <label class="field full"><span>Máx. paradas candidatas a evaluar</span>
-            <input id="maxCandidates" type="number" min="10" max="95" step="5" value="80" />
-            <small class="hint">Más candidatas = mejor plan pero cálculo más lento (límite de OSRM: 95).</small>
-          </label>
-        </details>
+        
 
         <div class="actions">
           <button class="btn primary big" id="btn-optimize">Optimizar viaje</button>
@@ -203,6 +205,24 @@
           </div>
           <small class="hint">Se usan si OSRM no está disponible (sin conexión o demasiadas paradas).</small>
         </div>
+
+<details class="group">
+          <summary><h2>Criterio de priorización</h2></summary>
+          <label class="field full"><span>Peso de la prioridad: <b id="wPriority-val">1</b></span>
+            <input id="wPriority" type="range" min="0" max="3" step="0.1" value="1" /></label>
+          <label class="field full"><span>Peso del valor potencial: <b id="wValue-val">1</b></span>
+            <input id="wValue" type="range" min="0" max="3" step="0.1" value="1" /></label>
+          <label class="field full"><span>Peso del tiempo sin visitar: <b id="wRecency-val">0.6</b></span>
+            <input id="wRecency" type="range" min="0" max="3" step="0.1" value="0.6" /></label>
+          <label class="field full"><span>Enfoque: <b id="prospectBias-val">equilibrado</b></span>
+            <input id="prospectBias" type="range" min="-1" max="1" step="0.1" value="0" />
+            <small class="hint">A la izquierda prioriza fidelizar clientes; a la derecha, captar prospectos.</small>
+          </label>
+          <label class="field full"><span>Máx. paradas candidatas a evaluar</span>
+            <input id="maxCandidates" type="number" min="10" max="95" step="5" value="80" />
+            <small class="hint">Más candidatas = mejor plan pero cálculo más lento (límite de OSRM: 95).</small>
+          </label>
+        </details>
 
         <div class="group">
           <h2>Datos guardados</h2>

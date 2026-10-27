@@ -432,3 +432,14 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
   font-size: 11px; color: #64748b; font-weight: 600;
   text-shadow: 0 0 3px #fff, 0 0 3px #fff, 0 0 3px #fff;
 }
+
+/* Alta rápida de citas pactadas */
+.grid3 { display: grid; grid-template-columns: 1.2fr 1fr 0.7fr; gap: 0 8px; }
+.appt-add {
+  margin-top: 10px; padding: 10px;
+  border: 1px solid var(--line); border-radius: var(--radius); background: #f8fafc;
+}
+.appt-add .btn { width: 100%; }
+.appt-msg { font-size: 11px; margin-top: 6px; min-height: 14px; }
+.appt-msg.ok { color: #15803d; }
+.appt-msg.error { color: #b45309; }
