@@ -11,9 +11,8 @@ window.BTP = window.BTP || {};
     originText: '',
     originLat: null,
     originLng: null,
-    destText: '',
-    destLat: null,
-    destLng: null,
+    stops: [],                // etapas del viaje, en orden: [{text, lat, lng}]
+    lockStopOrder: true,      // respetar el orden en que se han escrito
     mode: 'destino',          // 'destino' | 'corredor'
     radiusKm: 60,
     corridorKm: 40,
@@ -72,6 +71,26 @@ window.BTP = window.BTP || {};
   };
 
   if (!state.settings.startDate) state.settings.startDate = BTP.util.todayISO();
+
+  // Migración de los ajustes antiguos de un solo destino a la lista de etapas.
+  (function migrarDestino() {
+    var s = state.settings;
+    if (!Array.isArray(s.stops)) s.stops = [];
+    if (!s.stops.length && s.destText) {
+      s.stops.push({ text: s.destText, lat: s.destLat == null ? null : s.destLat, lng: s.destLng == null ? null : s.destLng });
+    }
+    delete s.destText; delete s.destLat; delete s.destLng;
+    saveSettings();
+  })();
+
+  /** Etapas con coordenadas resueltas, en orden. */
+  function resolvedStops() {
+    return (state.settings.stops || []).filter(function (e) {
+      return e && e.lat != null && e.lng != null;
+    }).map(function (e, i) {
+      return { name: e.text || ('Etapa ' + (i + 1)), lat: e.lat, lng: e.lng };
+    });
+  }
 
   function saveClients() { write(KEY_CLIENTS, state.clients); }
   function saveSettings() { write(KEY_SETTINGS, state.settings); }
@@ -223,6 +242,7 @@ window.BTP = window.BTP || {};
 
   BTP.store = {
     state: state,
+    resolvedStops: resolvedStops,
     exportBackup: exportBackup,
     importBackup: importBackup,
     DEFAULT_SETTINGS: DEFAULT_SETTINGS,

@@ -42,9 +42,11 @@ window.BTP = window.BTP || {};
 
   /**
    * Devuelve los clientes elegibles para el viaje, ya puntuados y ordenados.
-   * origin y dest son {lat,lng}.
+   * origin es {lat,lng} y stops la lista ordenada de etapas.
    */
-  function selectCandidates(clients, s, origin, dest) {
+  function selectCandidates(clients, s, origin, stops) {
+    stops = stops || [];
+    var ruta = origin ? [origin].concat(stops) : stops.slice();
     var maxValue = 0;
     clients.forEach(function (c) { if (c.value > maxValue) maxValue = c.value; });
 
@@ -70,11 +72,17 @@ window.BTP = window.BTP || {};
       var forced = BTP.store.hasAppointment(c);
       if (forced) stats.citas++;
       if (!forced && !passesFilters(c, s)) { stats.filtrados++; return; }
-      var dDest = dest ? U.haversine(c, dest) : 0;
+      // Distancia a la etapa más cercana: ordena el recorte de candidatas.
+      var dDest = Infinity;
+      stops.forEach(function (e) {
+        var d = U.haversine(c, e);
+        if (d < dDest) dDest = d;
+      });
+      if (dDest === Infinity) dDest = 0;
       var dOrig = origin ? U.haversine(c, origin) : 0;
       var inside;
-      if (s.mode === 'corredor' && origin && dest) {
-        inside = U.pointToSegmentKm(c, origin, dest) <= Number(s.corridorKm);
+      if (s.mode === 'corredor' && ruta.length >= 2) {
+        inside = U.pointToPathKm(c, ruta) <= Number(s.corridorKm);
       } else {
         inside = dDest <= Number(s.radiusKm);
       }
@@ -111,7 +119,7 @@ window.BTP = window.BTP || {};
   /* --- 2. Contexto de cálculo ------------------------------------------ */
 
   /** Construye los nodos del problema: 0 = origen, 1..n = paradas. */
-  function buildNodes(origin, dest, candidates, s) {
+  function buildNodes(origin, stops, candidates, s) {
     var nodes = [{ kind: 'origen', name: origin.name || 'Origen', lat: origin.lat, lng: origin.lng, visitMin: 0 }];
     candidates.forEach(function (cand) {
       nodes.push({
@@ -124,10 +132,12 @@ window.BTP = window.BTP || {};
         visitMin: Number(cand.client.duration) || Number(s.defaultVisitMin) || 60
       });
     });
-    if (s.destIsStop && dest && dest.lat != null) {
-      nodes.push({
-        kind: 'destino', name: dest.name || 'Destino',
-        lat: dest.lat, lng: dest.lng, visitMin: 0, score: 0
+    if (s.destIsStop) {
+      (stops || []).forEach(function (e, i) {
+        nodes.push({
+          kind: 'etapa', orden: i, name: e.name || ('Etapa ' + (i + 1)),
+          lat: e.lat, lng: e.lng, visitMin: 0, score: 0
+        });
       });
     }
     return nodes;
@@ -146,6 +156,11 @@ window.BTP = window.BTP || {};
 
   function makeCtx(nodes, matrix, s) {
     var appts = nodes.map(function (n) { return apptOf(n, s); });
+    var fijas = nodes.map(function (n, i) {
+      // Una cita pactada siempre fija su sitio; una etapa sólo si se ha pedido
+      // respetar el orden escrito.
+      return !!appts[i] || (n.kind === 'etapa' && s.lockStopOrder !== false);
+    });
     return {
       nodes: nodes,
       matrix: matrix,
@@ -153,6 +168,7 @@ window.BTP = window.BTP || {};
       visitMin: function (i) { return nodes[i].visitMin || 0; },
       score: function (i) { return nodes[i].score || 0; },
       appt: function (i) { return appts[i]; },
+      anchor: function (i) { return fijas[i]; },
       anyAppt: appts.some(function (a) { return !!a; })
     };
   }
@@ -404,7 +420,7 @@ window.BTP = window.BTP || {};
     var best = seq.slice(), bestCost = tourCost(best, ctx), improved = true, guard = 0;
     while (improved && guard++ < 40) {
       improved = false;
-      var anchor = best.map(function (n) { return !!ctx.appt(n); });
+      var anchor = best.map(function (n) { return ctx.anchor(n); });
       for (var i = 0; i < best.length - 1; i++) {
         if (anchor[i]) continue;
         for (var j = i + 1; j < best.length; j++) {
@@ -413,7 +429,7 @@ window.BTP = window.BTP || {};
             .concat(best.slice(i, j + 1).reverse())
             .concat(best.slice(j + 1));
           var c = tourCost(cand, ctx);
-          if (c < bestCost - 0.01) { best = cand; bestCost = c; improved = true; anchor = best.map(function (n) { return !!ctx.appt(n); }); }
+          if (c < bestCost - 0.01) { best = cand; bestCost = c; improved = true; anchor = best.map(function (n) { return ctx.anchor(n); }); }
         }
       }
     }
@@ -449,10 +465,10 @@ window.BTP = window.BTP || {};
     return best;
   }
 
-  /** pre[k] = número de citas pactadas entre las k primeras paradas. */
+  /** pre[k] = número de paradas fijas entre las k primeras. */
   function prefixAnchors(seq, ctx) {
     var pre = [0];
-    for (var i = 0; i < seq.length; i++) pre.push(pre[i] + (ctx.appt(seq[i]) ? 1 : 0));
+    for (var i = 0; i < seq.length; i++) pre.push(pre[i] + (ctx.anchor(seq[i]) ? 1 : 0));
     return pre;
   }
 
@@ -489,23 +505,35 @@ window.BTP = window.BTP || {};
   function optimizeSequence(ctx) {
     var s = ctx.settings;
     var budget = totalBudgetMin(s);
-    var anchors = [], mandatory = [], pool = [];
+    var etapas = [], citas = [], mandatory = [], pool = [];
 
     for (var i = 1; i < ctx.nodes.length; i++) {
       var n = ctx.nodes[i];
-      if (ctx.appt(i)) anchors.push(i);
-      else if (n.kind === 'destino' || (n.client && n.client.pinned)) mandatory.push(i);
+      if (ctx.appt(i)) citas.push(i);
+      else if (n.kind === 'etapa') {
+        if (s.lockStopOrder !== false) etapas.push(i);
+        else mandatory.push(i);
+      } else if (n.client && n.client.pinned) mandatory.push(i);
       else pool.push(i);
     }
 
-    // Las citas pactadas forman el esqueleto del viaje, en orden cronológico.
-    anchors.sort(function (a, b) {
+    // El esqueleto son las etapas en el orden escrito: Barcelona → Madrid →
+    // Salamanca se recorre en ese orden, no en el que salga más corto.
+    etapas.sort(function (a, b) { return ctx.nodes[a].orden - ctx.nodes[b].orden; });
+    var seq = etapas.slice();
+
+    // Las citas pactadas se encajan en ese esqueleto, en orden cronológico.
+    citas.sort(function (a, b) {
       var aa = ctx.appt(a), ab = ctx.appt(b);
       var da = aa.dayIndex === null ? 0 : aa.dayIndex;
       var db = ab.dayIndex === null ? 0 : ab.dayIndex;
       return da !== db ? da - db : aa.start - ab.start;
     });
-    var seq = anchors.slice();
+    citas.forEach(function (node) {
+      var next = insertFeasible(seq, node, ctx, seq.length + 1);
+      if (next) { seq = next; return; }
+      seq.splice(bestPosition(seq, node, ctx).pos, 0, node);   // la cita entra igual
+    });
 
     mandatory.forEach(function (node) {
       var next = insertFeasible(seq, node, ctx, 10);
@@ -558,7 +586,7 @@ window.BTP = window.BTP || {};
    */
   function buildPlan(opts) {
     var s = opts.settings;
-    var nodes = buildNodes(opts.origin, opts.dest, opts.candidates, s);
+    var nodes = buildNodes(opts.origin, opts.stops || [], opts.candidates, s);
     var points = nodes.map(function (n) { return { lat: n.lat, lng: n.lng }; });
 
     return BTP.routing.matrix(points, s).then(function (matrix) {

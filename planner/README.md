@@ -69,11 +69,14 @@ restringen a HTTPS y localhost.
 2. **Datos → Geocodificar pendientes.** Convierte las direcciones en coordenadas para
    poder situarlas en el mapa. Va a 1 dirección por segundo (política de uso de
    Nominatim) y guarda los resultados en caché, así que sólo se hace una vez.
-3. **Viaje → Recorrido.** Escribe tu punto de partida (o pulsa 📍 para usar el GPS) y el
-   destino. Elige entre:
-   - **Radio en destino**: visitar lo que haya alrededor del destino.
-   - **Corredor del trayecto**: aprovechar el camino de ida y vuelta, incluyendo todo lo
-     que quede a X km de la línea origen→destino.
+3. **Viaje → Recorrido.** Escribe tu punto de partida (o pulsa 📍 para usar el GPS) y las
+   **etapas del viaje**, una por línea y en el orden en que las vas a recorrer. Un viaje
+   Barcelona → Madrid → Salamanca son dos etapas: Madrid y Salamanca. Con las flechas las
+   reordenas y con ✕ las quitas. Si desmarcas *Recorrerlas en este orden*, el optimizador
+   busca el recorrido más corto que pase por todas. Elige además entre:
+   - **Radio en las etapas**: visitar lo que haya alrededor de cada etapa.
+   - **Corredor del trayecto**: aprovechar todo el camino, incluyendo lo que quede a X km
+     de la línea que une origen y etapas.
 4. **Viaje → Calendario y filtros.** Días de viaje, horario de jornada, duración media de
    visita, pausa de comida, y a quién quieres ver (tipo, prioridad, sector, etiqueta,
    tiempo sin visitar).
@@ -167,8 +170,8 @@ Tienes una plantilla lista en [`ejemplo-clientes.csv`](ejemplo-clientes.csv).
 ## Cómo decide la ruta
 
 1. **Selección de candidatos.** Se filtra la cartera (tipo, prioridad, sector, etiqueta,
-   días sin visitar) y se queda con lo que cae dentro del radio del destino o del
-   corredor del trayecto.
+   días sin visitar) y se queda con lo que cae dentro del radio de alguna etapa o de la
+   franja que recorre origen y etapas.
 2. **Puntuación.** Cada candidato recibe una puntuación combinando prioridad, valor
    potencial y tiempo transcurrido desde la última visita. Los pesos son ajustables, y el
    deslizador *Enfoque* permite inclinar el viaje hacia fidelizar clientes o hacia captar
@@ -177,11 +180,12 @@ Tienes una plantilla lista en [`ejemplo-clientes.csv`](ejemplo-clientes.csv).
    entre todos los puntos. Si no hay conexión o hay demasiadas paradas, se estima con
    distancia geodésica × factor de desvío a la velocidad media configurada (la app avisa
    de cuál de las dos ha usado).
-4. **Construcción del viaje.** Las citas pactadas forman el esqueleto, en orden
-   cronológico. Sobre él, inserción voraz por ratio *puntuación / tiempo extra*: en cada
+4. **Construcción del viaje.** Las etapas forman el esqueleto, en el orden escrito, y las
+   citas pactadas se encajan en él por orden cronológico. Sobre él, inserción voraz por ratio *puntuación / tiempo extra*: en cada
    paso entra la visita que más aporta por cada minuto que añade al recorrido, probando
    varias posiciones y descartando las que romperían una cita. Después se afina el orden
-   con **2-opt** y **Or-opt**, que nunca cruzan una cita pactada.
+   con **2-opt** y **Or-opt**, que nunca cruzan una cita pactada ni alteran el orden de
+   las etapas.
 5. **Reparto por días.** Se simula la agenda hora a hora respetando el horario de jornada
    y la pausa de comida; cuando un día se llena, se pernocta en la última parada y el día
    siguiente arranca desde allí. Lo que no cabe aparece listado aparte como

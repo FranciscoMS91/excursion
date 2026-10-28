@@ -232,34 +232,46 @@ window.BTP = window.BTP || {};
     });
   }
 
-  /** Círculo de radio o franja del corredor origen→destino. */
-  function renderZone(origin, dest, settings) {
+  /** Marca el origen y las etapas, y dibuja la zona de búsqueda. */
+  function renderZone(origin, stops, settings) {
     if (!map) return;
     layers.zone.clearLayers();
     layers.anchors.clearLayers();
+    stops = (stops || []).filter(function (e) { return e && e.lat != null; });
+
+    var letras = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    var ruta = [];
 
     if (origin && origin.lat != null) {
+      ruta.push(origin);
       L.marker([origin.lat, origin.lng], { icon: pinIcon('A', '#111827') })
         .bindPopup('<b>Origen</b><br>' + U.escapeHtml(origin.name || ''))
         .addTo(layers.anchors);
     }
-    if (dest && dest.lat != null) {
-      L.marker([dest.lat, dest.lng], { icon: pinIcon('B', '#b91c1c') })
-        .bindPopup('<b>Destino</b><br>' + U.escapeHtml(dest.name || ''))
+    stops.forEach(function (e, i) {
+      ruta.push(e);
+      var letra = letras.charAt(Math.min(i + (origin && origin.lat != null ? 1 : 0), 25));
+      L.marker([e.lat, e.lng], { icon: pinIcon(letra, '#b91c1c') })
+        .bindPopup('<b>Etapa ' + (i + 1) + '</b><br>' + U.escapeHtml(e.name || ''))
         .addTo(layers.anchors);
-    }
-    if (!dest || dest.lat == null) return;
+    });
 
-    if (settings.mode === 'corredor' && origin && origin.lat != null) {
-      var poly = corridorPolygon(origin, dest, Number(settings.corridorKm));
-      L.polygon(poly, { color: '#2563eb', weight: 1, fillOpacity: 0.06, dashArray: '4 4' }).addTo(layers.zone);
-      L.polyline([[origin.lat, origin.lng], [dest.lat, dest.lng]],
+    if (!stops.length) return;
+
+    if (settings.mode === 'corredor' && ruta.length >= 2) {
+      for (var k = 0; k < ruta.length - 1; k++) {
+        L.polygon(corridorPolygon(ruta[k], ruta[k + 1], Number(settings.corridorKm)),
+          { color: '#2563eb', weight: 1, fillOpacity: 0.06, dashArray: '4 4' }).addTo(layers.zone);
+      }
+      L.polyline(ruta.map(function (p) { return [p.lat, p.lng]; }),
         { color: '#2563eb', weight: 1, dashArray: '6 6', opacity: 0.7 }).addTo(layers.zone);
     } else {
-      L.circle([dest.lat, dest.lng], {
-        radius: Number(settings.radiusKm) * 1000,
-        color: '#2563eb', weight: 1, fillOpacity: 0.06, dashArray: '4 4'
-      }).addTo(layers.zone);
+      stops.forEach(function (e) {
+        L.circle([e.lat, e.lng], {
+          radius: Number(settings.radiusKm) * 1000,
+          color: '#2563eb', weight: 1, fillOpacity: 0.06, dashArray: '4 4'
+        }).addTo(layers.zone);
+      });
     }
   }
 
