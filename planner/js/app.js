@@ -48,7 +48,7 @@
 
   function bindForm() {
     $('#origin').value = S.originText || '';
-    $('#dest').value = S.destText || '';
+    renderStops();
 
     bindInput('startDate', 'startDate');
     bindInput('days', 'days', 'number');
@@ -59,6 +59,7 @@
     bindInput('lunchStart', 'lunchStart');
     bindInput('returnToOrigin', 'returnToOrigin', 'check');
     bindInput('destIsStop', 'destIsStop', 'check');
+    bindInput('lockStopOrder', 'lockStopOrder', 'check');
     bindInput('filterMinPriority', 'filterMinPriority', 'number');
     bindInput('filterNotVisitedDays', 'filterNotVisitedDays', 'number');
     bindInput('filterIndustry', 'filterIndustry');
@@ -122,14 +123,15 @@
 
     var reDraw = U.debounce(function () { resolvePoint('origin').then(drawZone); }, 900);
     $('#origin').addEventListener('change', reDraw);
-    $('#dest').addEventListener('change', U.debounce(function () {
-      resolvePoint('dest').then(function (p) {
-        drawZone();
-        if (p) BTP.map.flyTo(p.lat, p.lng, 9);
-      });
-    }, 500));
 
     $('#btn-gps').addEventListener('click', useGeolocation);
+    $('#btn-add-stop').addEventListener('click', function () {
+      S.stops.push({ text: '', lat: null, lng: null });
+      BTP.store.saveSettings();
+      renderStops();
+      var ult = $$('#stops-list input');
+      if (ult.length) ult[ult.length - 1].focus();
+    });
   }
 
   function applyTiles() {
@@ -137,17 +139,143 @@
     BTP.map.setTiles(S);
   }
 
-  /* --- Geocodificación de origen y destino ------------------------------ */
+  /* --- Etapas del viaje -------------------------------------------------- */
+
+  /** Dibuja la lista de etapas en el panel. */
+  function renderStops() {
+    var box = $('#stops-list');
+    if (!box) return;
+    box.innerHTML = '';
+    if (!S.stops.length) {
+      S.stops.push({ text: '', lat: null, lng: null });
+      BTP.store.saveSettings();
+    }
+
+    S.stops.forEach(function (etapa, i) {
+      var input = U.el('input', {
+        type: 'text',
+        value: etapa.text || '',
+        placeholder: i === 0 ? 'Ej. Madrid' : 'Siguiente parada'
+      });
+      var estado = U.el('small', { class: 'hint' });
+      if (etapa.text && etapa.lat != null) {
+        estado.className = 'hint ok';
+        estado.textContent = '✓ ' + (etapa.label || etapa.text);
+      }
+
+      input.addEventListener('change', U.debounce(function () {
+        etapa.text = input.value.trim();
+        etapa.lat = null; etapa.lng = null;
+        BTP.store.saveSettings();
+        resolveStop(i, estado).then(function (p) {
+          drawZone();
+          if (p) BTP.map.flyTo(p.lat, p.lng, 9);
+        });
+      }, 400));
+
+      box.appendChild(U.el('div', { class: 'stop-row' }, [
+        U.el('span', { class: 'stop-num', text: String(i + 1) }),
+        U.el('div', { class: 'stop-main' }, [input, estado]),
+        U.el('button', {
+          class: 'mini', text: '↑', title: 'Subir', disabled: i === 0 ? 'disabled' : null,
+          onclick: function () { moverEtapa(i, -1); }
+        }),
+        U.el('button', {
+          class: 'mini', text: '↓', title: 'Bajar',
+          disabled: i === S.stops.length - 1 ? 'disabled' : null,
+          onclick: function () { moverEtapa(i, 1); }
+        }),
+        U.el('button', {
+          class: 'mini danger', text: '✕', title: 'Quitar etapa',
+          disabled: S.stops.length < 2 ? 'disabled' : null,
+          onclick: function () {
+            S.stops.splice(i, 1);
+            BTP.store.saveSettings();
+            renderStops();
+            drawZone();
+          }
+        })
+      ]));
+    });
+  }
+
+  function moverEtapa(i, delta) {
+    var j = i + delta;
+    if (j < 0 || j >= S.stops.length) return;
+    var tmp = S.stops[i];
+    S.stops[i] = S.stops[j];
+    S.stops[j] = tmp;
+    BTP.store.saveSettings();
+    renderStops();
+    drawZone();
+  }
+
+  /** Geocodifica una etapa concreta. */
+  function resolveStop(i, estado) {
+    var etapa = S.stops[i];
+    if (!etapa) return Promise.resolve(null);
+    var text = (etapa.text || '').trim();
+    if (!text) {
+      etapa.lat = null; etapa.lng = null;
+      BTP.store.saveSettings();
+      if (estado) { estado.className = 'hint'; estado.textContent = ''; }
+      return Promise.resolve(null);
+    }
+    if (etapa.lat != null) return Promise.resolve({ name: text, lat: etapa.lat, lng: etapa.lng });
+
+    var directo = /^\s*(-?\d{1,2}(?:[.,]\d+)?)\s*[,;]\s*(-?\d{1,3}(?:[.,]\d+)?)\s*$/.exec(text);
+    if (directo) {
+      etapa.lat = parseFloat(directo[1].replace(',', '.'));
+      etapa.lng = parseFloat(directo[2].replace(',', '.'));
+      BTP.store.saveSettings();
+      if (estado) { estado.className = 'hint ok'; estado.textContent = '✓ Coordenadas'; }
+      return Promise.resolve({ name: text, lat: etapa.lat, lng: etapa.lng });
+    }
+
+    if (estado) { estado.className = 'hint'; estado.textContent = 'Buscando…'; }
+    return BTP.geocode.geocodeStrict(text).then(function (hit) {
+      if (!hit) {
+        if (estado) { estado.className = 'hint warn'; estado.textContent = '⚠ No encontrada'; }
+        return null;
+      }
+      etapa.lat = hit.lat; etapa.lng = hit.lng;
+      etapa.label = hit.label.split(',').slice(0, 2).join(',');
+      BTP.store.saveSettings();
+      if (estado) { estado.className = 'hint ok'; estado.textContent = '✓ ' + etapa.label; }
+      return { name: text, lat: hit.lat, lng: hit.lng };
+    }).catch(function () {
+      if (estado) {
+        estado.className = 'hint warn';
+        estado.textContent = '⚠ Sin conexión con el buscador. Puedes poner «40.41, -3.70».';
+      }
+      return null;
+    });
+  }
+
+  /** Resuelve todas las etapas, una tras otra (Nominatim va a 1 por segundo). */
+  function resolveAllStops() {
+    var estados = $$('#stops-list .hint');
+    return S.stops.reduce(function (cadena, _, i) {
+      return cadena.then(function (acc) {
+        return resolveStop(i, estados[i]).then(function (p) {
+          if (p) acc.push(p);
+          return acc;
+        });
+      });
+    }, Promise.resolve([]));
+  }
+
+  /* --- Geocodificación del origen --------------------------------------- */
 
   function point(kind) {
     var lat = S[kind + 'Lat'], lng = S[kind + 'Lng'];
     if (lat == null || lng == null) return null;
-    return { name: S[kind + 'Text'] || (kind === 'origin' ? 'Origen' : 'Destino'), lat: lat, lng: lng };
+    return { name: S[kind + 'Text'] || 'Origen', lat: lat, lng: lng };
   }
 
   function resolvePoint(kind) {
-    var input = $('#' + (kind === 'origin' ? 'origin' : 'dest'));
-    var status = $('#' + (kind === 'origin' ? 'origin' : 'dest') + '-status');
+    var input = $('#' + kind);
+    var status = $('#' + kind + '-status');
     var text = input.value.trim();
     if (!text) {
       S[kind + 'Text'] = ''; S[kind + 'Lat'] = null; S[kind + 'Lng'] = null;
@@ -227,7 +355,7 @@
   }
 
   function drawZone() {
-    BTP.map.renderZone(point('origin'), point('dest'), S);
+    BTP.map.renderZone(point('origin'), BTP.store.resolvedStops(), S);
   }
 
   function refreshAll() {
@@ -484,21 +612,22 @@
     btn.textContent = 'Calculando…';
     topStatus('Preparando el viaje…');
 
-    Promise.all([resolvePoint('origin'), resolvePoint('dest')]).then(function (pts) {
-      var origin = pts[0], dest = pts[1];
+    resolvePoint('origin').then(function (origin) {
       if (!origin) throw new Error('Indica tu punto de partida.');
-      if (!dest) throw new Error('Indica el destino del viaje.');
-      if (!S.startDate) { S.startDate = U.todayISO(); $('#startDate').value = S.startDate; }
+      return resolveAllStops().then(function (stops) {
+        if (!stops.length) throw new Error('Indica al menos una etapa del viaje.');
+        if (!S.startDate) { S.startDate = U.todayISO(); $('#startDate').value = S.startDate; }
 
-      drawZone();
-      var sel = BTP.optimize.selectCandidates(BTP.store.state.clients, S, origin, dest);
-      showCandidateSummary(sel);
-      if (!sel.candidates.length) {
-        throw new Error('Ningún cliente cumple los filtros dentro de la zona. Amplía el radio o revisa los filtros.');
-      }
-      topStatus('Calculando tiempos de ruta entre ' + (sel.candidates.length + 2) + ' puntos…');
-      return BTP.optimize.buildPlan({
-        origin: origin, dest: dest, candidates: sel.candidates, settings: S
+        drawZone();
+        var sel = BTP.optimize.selectCandidates(BTP.store.state.clients, S, origin, stops);
+        showCandidateSummary(sel);
+        if (!sel.candidates.length) {
+          throw new Error('Ningún cliente cumple los filtros dentro de la zona. Amplía el radio o revisa los filtros.');
+        }
+        topStatus('Calculando tiempos de ruta entre ' + (sel.candidates.length + stops.length + 1) + ' puntos…');
+        return BTP.optimize.buildPlan({
+          origin: origin, stops: stops, candidates: sel.candidates, settings: S
+        });
       });
     }).then(function (p) {
       plan = p;

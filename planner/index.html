@@ -15,8 +15,8 @@
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="icon" href="icons/favicon-64.png" sizes="64x64" type="image/png" />
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
-  <link rel="stylesheet" href="vendor/leaflet.css?v=20" />
-  <link rel="stylesheet" href="css/planner.css?v=20" />
+  <link rel="stylesheet" href="vendor/leaflet.css?v=21" />
+  <link rel="stylesheet" href="css/planner.css?v=21" />
 </head>
 
 <body>
@@ -26,7 +26,7 @@
       <div>
         <h1>Planificador de viajes comerciales</h1>
         <p>Optimiza cada desplazamiento por la península ibérica
-          <span class="build-tag" id="build-tag">v2.0 · móvil, copia y mapa garantizado</span>
+          <span class="build-tag" id="build-tag">v2.1 · viajes multietapa</span>
         </p>
       </div>
     </div>
@@ -53,18 +53,22 @@
             </div>
             <small class="hint" id="origin-status"></small>
           </label>
-          <label class="field full">
-            <span>Destino</span>
-            <input id="dest" type="text" placeholder="Ej. Valencia" />
-            <small class="hint" id="dest-status"></small>
-          </label>
+          <div class="field full">
+            <span>Etapas del viaje, en orden</span>
+            <div id="stops-list" class="stops-list"></div>
+            <button class="btn" id="btn-add-stop" type="button">+ Añadir etapa</button>
+            <label class="field check" style="margin-top:8px">
+              <input id="lockStopOrder" type="checkbox" checked />
+              <span>Recorrerlas en este orden</span>
+            </label>
+          </div>
 
           <div class="segmented" id="mode">
-            <button data-mode="destino" class="active">Radio en destino</button>
+            <button data-mode="destino" class="active">Radio en las etapas</button>
             <button data-mode="corredor">Corredor del trayecto</button>
           </div>
           <label class="field full" id="radius-field">
-            <span>Radio alrededor del destino: <b id="radius-val">60</b> km</span>
+            <span>Radio alrededor de cada etapa: <b id="radius-val">60</b> km</span>
             <input id="radius" type="range" min="5" max="300" step="5" value="60" />
           </label>
           <label class="field full hidden" id="corridor-field">
@@ -85,7 +89,7 @@
             <label class="field"><span>Hora de comer</span><input id="lunchStart" type="time" value="14:00" /></label>
           </div>
           <label class="field check"><input id="returnToOrigin" type="checkbox" checked /><span>Volver al punto de partida el último día</span></label>
-          <label class="field check"><input id="destIsStop" type="checkbox" checked /><span>Pasar obligatoriamente por el destino</span></label>
+          <label class="field check"><input id="destIsStop" type="checkbox" checked /><span>Pasar obligatoriamente por cada etapa</span></label>
         </div>
 
         <div class="group">
@@ -300,20 +304,20 @@
   <div id="toast" class="toast"></div>
 
   <!-- Librerías incluidas en el repositorio: la app funciona sin CDN. -->
-  <script src="vendor/leaflet.js?v=20"></script>
-  <script src="vendor/xlsx.full.min.js?v=20"></script>
-  <script src="js/util.js?v=20"></script>
-  <script src="js/store.js?v=20"></script>
-  <script src="js/csv.js?v=20"></script>
-  <script src="js/geocode.js?v=20"></script>
-  <script src="js/routing.js?v=20"></script>
-  <script src="js/optimize.js?v=20"></script>
-  <script src="js/map.js?v=20"></script>
-  <script src="js/itinerary.js?v=20"></script>
-  <script src="js/clients.js?v=20"></script>
-  <script src="js/basemap-data.js?v=20"></script>
-  <script src="js/demo-data.js?v=20"></script>
-  <script src="js/app.js?v=20"></script>
+  <script src="vendor/leaflet.js?v=21"></script>
+  <script src="vendor/xlsx.full.min.js?v=21"></script>
+  <script src="js/util.js?v=21"></script>
+  <script src="js/store.js?v=21"></script>
+  <script src="js/csv.js?v=21"></script>
+  <script src="js/geocode.js?v=21"></script>
+  <script src="js/routing.js?v=21"></script>
+  <script src="js/optimize.js?v=21"></script>
+  <script src="js/map.js?v=21"></script>
+  <script src="js/itinerary.js?v=21"></script>
+  <script src="js/clients.js?v=21"></script>
+  <script src="js/basemap-data.js?v=21"></script>
+  <script src="js/demo-data.js?v=21"></script>
+  <script src="js/app.js?v=21"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function () {

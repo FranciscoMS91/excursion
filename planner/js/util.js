@@ -73,6 +73,17 @@ window.BTP = window.BTP || {};
     return Math.sqrt(dx * dx + dy * dy);
   }
 
+  /** Distancia en km de un punto a la polilínea que pasa por varios puntos. */
+  function pointToPathKm(p, path) {
+    if (!path || path.length < 2) return Infinity;
+    var min = Infinity;
+    for (var i = 0; i < path.length - 1; i++) {
+      var d = pointToSegmentKm(p, path[i], path[i + 1]);
+      if (d < min) min = d;
+    }
+    return min;
+  }
+
   function parseHM(str) {
     var m = /^(\d{1,2}):(\d{2})$/.exec(String(str || '').trim());
     if (!m) return 0;
@@ -162,7 +173,7 @@ window.BTP = window.BTP || {};
 
   BTP.util = {
     $: $, $$: $$, el: el, uid: uid, norm: norm, stripAccents: stripAccents, escapeHtml: escapeHtml,
-    haversine: haversine, pointToSegmentKm: pointToSegmentKm, toXY: toXY,
+    haversine: haversine, pointToSegmentKm: pointToSegmentKm, pointToPathKm: pointToPathKm, toXY: toXY,
     parseHM: parseHM, fmtHM: fmtHM, fmtDur: fmtDur, fmtKm: fmtKm,
     todayISO: todayISO, addDays: addDays, fmtDateES: fmtDateES, daysSince: daysSince,
     daysBetween: daysBetween,

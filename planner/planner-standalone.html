@@ -1202,6 +1202,19 @@ a.mini { text-decoration: none; display: inline-flex; align-items: center; justi
   .v-actions { flex-wrap: wrap; max-width: 96px; justify-content: flex-end; }
 }
 
+/* --------------------------------------------------------- Etapas del viaje */
+.stops-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+.stop-row { display: flex; align-items: flex-start; gap: 6px; }
+.stop-num {
+  flex: 0 0 auto; width: 20px; height: 20px; margin-top: 8px;
+  border-radius: 50%; background: #b91c1c; color: #fff;
+  font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center;
+}
+.stop-main { flex: 1; min-width: 0; }
+.stop-row .mini { margin-top: 5px; padding: 5px 7px; }
+.stop-row .mini[disabled] { opacity: .3; cursor: default; }
+#btn-add-stop { width: 100%; }
+
 </style>
 </head>
 
@@ -1212,7 +1225,7 @@ a.mini { text-decoration: none; display: inline-flex; align-items: center; justi
       <div>
         <h1>Planificador de viajes comerciales</h1>
         <p>Optimiza cada desplazamiento por la península ibérica
-          <span class="build-tag" id="build-tag">v2.0 · fichero único 2026-10-27</span>
+          <span class="build-tag" id="build-tag">v2.1 · fichero único 2026-10-28</span>
         </p>
       </div>
     </div>
@@ -1239,18 +1252,22 @@ a.mini { text-decoration: none; display: inline-flex; align-items: center; justi
             </div>
             <small class="hint" id="origin-status"></small>
           </label>
-          <label class="field full">
-            <span>Destino</span>
-            <input id="dest" type="text" placeholder="Ej. Valencia" />
-            <small class="hint" id="dest-status"></small>
-          </label>
+          <div class="field full">
+            <span>Etapas del viaje, en orden</span>
+            <div id="stops-list" class="stops-list"></div>
+            <button class="btn" id="btn-add-stop" type="button">+ Añadir etapa</button>
+            <label class="field check" style="margin-top:8px">
+              <input id="lockStopOrder" type="checkbox" checked />
+              <span>Recorrerlas en este orden</span>
+            </label>
+          </div>
 
           <div class="segmented" id="mode">
-            <button data-mode="destino" class="active">Radio en destino</button>
+            <button data-mode="destino" class="active">Radio en las etapas</button>
             <button data-mode="corredor">Corredor del trayecto</button>
           </div>
           <label class="field full" id="radius-field">
-            <span>Radio alrededor del destino: <b id="radius-val">60</b> km</span>
+            <span>Radio alrededor de cada etapa: <b id="radius-val">60</b> km</span>
             <input id="radius" type="range" min="5" max="300" step="5" value="60" />
           </label>
           <label class="field full hidden" id="corridor-field">
@@ -1271,7 +1288,7 @@ a.mini { text-decoration: none; display: inline-flex; align-items: center; justi
             <label class="field"><span>Hora de comer</span><input id="lunchStart" type="time" value="14:00" /></label>
           </div>
           <label class="field check"><input id="returnToOrigin" type="checkbox" checked /><span>Volver al punto de partida el último día</span></label>
-          <label class="field check"><input id="destIsStop" type="checkbox" checked /><span>Pasar obligatoriamente por el destino</span></label>
+          <label class="field check"><input id="destIsStop" type="checkbox" checked /><span>Pasar obligatoriamente por cada etapa</span></label>
         </div>
 
         <div class="group">
@@ -1595,6 +1612,17 @@ window.BTP = window.BTP || {};
     return Math.sqrt(dx * dx + dy * dy);
   }
 
+  /** Distancia en km de un punto a la polilínea que pasa por varios puntos. */
+  function pointToPathKm(p, path) {
+    if (!path || path.length < 2) return Infinity;
+    var min = Infinity;
+    for (var i = 0; i < path.length - 1; i++) {
+      var d = pointToSegmentKm(p, path[i], path[i + 1]);
+      if (d < min) min = d;
+    }
+    return min;
+  }
+
   function parseHM(str) {
     var m = /^(\d{1,2}):(\d{2})$/.exec(String(str || '').trim());
     if (!m) return 0;
@@ -1684,7 +1712,7 @@ window.BTP = window.BTP || {};
 
   BTP.util = {
     $: $, $$: $$, el: el, uid: uid, norm: norm, stripAccents: stripAccents, escapeHtml: escapeHtml,
-    haversine: haversine, pointToSegmentKm: pointToSegmentKm, toXY: toXY,
+    haversine: haversine, pointToSegmentKm: pointToSegmentKm, pointToPathKm: pointToPathKm, toXY: toXY,
     parseHM: parseHM, fmtHM: fmtHM, fmtDur: fmtDur, fmtKm: fmtKm,
     todayISO: todayISO, addDays: addDays, fmtDateES: fmtDateES, daysSince: daysSince,
     daysBetween: daysBetween,
@@ -1707,9 +1735,8 @@ window.BTP = window.BTP || {};
     originText: '',
     originLat: null,
     originLng: null,
-    destText: '',
-    destLat: null,
-    destLng: null,
+    stops: [],                // etapas del viaje, en orden: [{text, lat, lng}]
+    lockStopOrder: true,      // respetar el orden en que se han escrito
     mode: 'destino',          // 'destino' | 'corredor'
     radiusKm: 60,
     corridorKm: 40,
@@ -1768,6 +1795,26 @@ window.BTP = window.BTP || {};
   };
 
   if (!state.settings.startDate) state.settings.startDate = BTP.util.todayISO();
+
+  // Migración de los ajustes antiguos de un solo destino a la lista de etapas.
+  (function migrarDestino() {
+    var s = state.settings;
+    if (!Array.isArray(s.stops)) s.stops = [];
+    if (!s.stops.length && s.destText) {
+      s.stops.push({ text: s.destText, lat: s.destLat == null ? null : s.destLat, lng: s.destLng == null ? null : s.destLng });
+    }
+    delete s.destText; delete s.destLat; delete s.destLng;
+    saveSettings();
+  })();
+
+  /** Etapas con coordenadas resueltas, en orden. */
+  function resolvedStops() {
+    return (state.settings.stops || []).filter(function (e) {
+      return e && e.lat != null && e.lng != null;
+    }).map(function (e, i) {
+      return { name: e.text || ('Etapa ' + (i + 1)), lat: e.lat, lng: e.lng };
+    });
+  }
 
   function saveClients() { write(KEY_CLIENTS, state.clients); }
   function saveSettings() { write(KEY_SETTINGS, state.settings); }
@@ -1919,6 +1966,7 @@ window.BTP = window.BTP || {};
 
   BTP.store = {
     state: state,
+    resolvedStops: resolvedStops,
     exportBackup: exportBackup,
     importBackup: importBackup,
     DEFAULT_SETTINGS: DEFAULT_SETTINGS,
@@ -2485,9 +2533,11 @@ window.BTP = window.BTP || {};
 
   /**
    * Devuelve los clientes elegibles para el viaje, ya puntuados y ordenados.
-   * origin y dest son {lat,lng}.
+   * origin es {lat,lng} y stops la lista ordenada de etapas.
    */
-  function selectCandidates(clients, s, origin, dest) {
+  function selectCandidates(clients, s, origin, stops) {
+    stops = stops || [];
+    var ruta = origin ? [origin].concat(stops) : stops.slice();
     var maxValue = 0;
     clients.forEach(function (c) { if (c.value > maxValue) maxValue = c.value; });
 
@@ -2513,11 +2563,17 @@ window.BTP = window.BTP || {};
       var forced = BTP.store.hasAppointment(c);
       if (forced) stats.citas++;
       if (!forced && !passesFilters(c, s)) { stats.filtrados++; return; }
-      var dDest = dest ? U.haversine(c, dest) : 0;
+      // Distancia a la etapa más cercana: ordena el recorte de candidatas.
+      var dDest = Infinity;
+      stops.forEach(function (e) {
+        var d = U.haversine(c, e);
+        if (d < dDest) dDest = d;
+      });
+      if (dDest === Infinity) dDest = 0;
       var dOrig = origin ? U.haversine(c, origin) : 0;
       var inside;
-      if (s.mode === 'corredor' && origin && dest) {
-        inside = U.pointToSegmentKm(c, origin, dest) <= Number(s.corridorKm);
+      if (s.mode === 'corredor' && ruta.length >= 2) {
+        inside = U.pointToPathKm(c, ruta) <= Number(s.corridorKm);
       } else {
         inside = dDest <= Number(s.radiusKm);
       }
@@ -2554,7 +2610,7 @@ window.BTP = window.BTP || {};
   /* --- 2. Contexto de cálculo ------------------------------------------ */
 
   /** Construye los nodos del problema: 0 = origen, 1..n = paradas. */
-  function buildNodes(origin, dest, candidates, s) {
+  function buildNodes(origin, stops, candidates, s) {
     var nodes = [{ kind: 'origen', name: origin.name || 'Origen', lat: origin.lat, lng: origin.lng, visitMin: 0 }];
     candidates.forEach(function (cand) {
       nodes.push({
@@ -2567,10 +2623,12 @@ window.BTP = window.BTP || {};
         visitMin: Number(cand.client.duration) || Number(s.defaultVisitMin) || 60
       });
     });
-    if (s.destIsStop && dest && dest.lat != null) {
-      nodes.push({
-        kind: 'destino', name: dest.name || 'Destino',
-        lat: dest.lat, lng: dest.lng, visitMin: 0, score: 0
+    if (s.destIsStop) {
+      (stops || []).forEach(function (e, i) {
+        nodes.push({
+          kind: 'etapa', orden: i, name: e.name || ('Etapa ' + (i + 1)),
+          lat: e.lat, lng: e.lng, visitMin: 0, score: 0
+        });
       });
     }
     return nodes;
@@ -2589,6 +2647,11 @@ window.BTP = window.BTP || {};
 
   function makeCtx(nodes, matrix, s) {
     var appts = nodes.map(function (n) { return apptOf(n, s); });
+    var fijas = nodes.map(function (n, i) {
+      // Una cita pactada siempre fija su sitio; una etapa sólo si se ha pedido
+      // respetar el orden escrito.
+      return !!appts[i] || (n.kind === 'etapa' && s.lockStopOrder !== false);
+    });
     return {
       nodes: nodes,
       matrix: matrix,
@@ -2596,6 +2659,7 @@ window.BTP = window.BTP || {};
       visitMin: function (i) { return nodes[i].visitMin || 0; },
       score: function (i) { return nodes[i].score || 0; },
       appt: function (i) { return appts[i]; },
+      anchor: function (i) { return fijas[i]; },
       anyAppt: appts.some(function (a) { return !!a; })
     };
   }
@@ -2847,7 +2911,7 @@ window.BTP = window.BTP || {};
     var best = seq.slice(), bestCost = tourCost(best, ctx), improved = true, guard = 0;
     while (improved && guard++ < 40) {
       improved = false;
-      var anchor = best.map(function (n) { return !!ctx.appt(n); });
+      var anchor = best.map(function (n) { return ctx.anchor(n); });
       for (var i = 0; i < best.length - 1; i++) {
         if (anchor[i]) continue;
         for (var j = i + 1; j < best.length; j++) {
@@ -2856,7 +2920,7 @@ window.BTP = window.BTP || {};
             .concat(best.slice(i, j + 1).reverse())
             .concat(best.slice(j + 1));
           var c = tourCost(cand, ctx);
-          if (c < bestCost - 0.01) { best = cand; bestCost = c; improved = true; anchor = best.map(function (n) { return !!ctx.appt(n); }); }
+          if (c < bestCost - 0.01) { best = cand; bestCost = c; improved = true; anchor = best.map(function (n) { return ctx.anchor(n); }); }
         }
       }
     }
@@ -2892,10 +2956,10 @@ window.BTP = window.BTP || {};
     return best;
   }
 
-  /** pre[k] = número de citas pactadas entre las k primeras paradas. */
+  /** pre[k] = número de paradas fijas entre las k primeras. */
   function prefixAnchors(seq, ctx) {
     var pre = [0];
-    for (var i = 0; i < seq.length; i++) pre.push(pre[i] + (ctx.appt(seq[i]) ? 1 : 0));
+    for (var i = 0; i < seq.length; i++) pre.push(pre[i] + (ctx.anchor(seq[i]) ? 1 : 0));
     return pre;
   }
 
@@ -2932,23 +2996,35 @@ window.BTP = window.BTP || {};
   function optimizeSequence(ctx) {
     var s = ctx.settings;
     var budget = totalBudgetMin(s);
-    var anchors = [], mandatory = [], pool = [];
+    var etapas = [], citas = [], mandatory = [], pool = [];
 
     for (var i = 1; i < ctx.nodes.length; i++) {
       var n = ctx.nodes[i];
-      if (ctx.appt(i)) anchors.push(i);
-      else if (n.kind === 'destino' || (n.client && n.client.pinned)) mandatory.push(i);
+      if (ctx.appt(i)) citas.push(i);
+      else if (n.kind === 'etapa') {
+        if (s.lockStopOrder !== false) etapas.push(i);
+        else mandatory.push(i);
+      } else if (n.client && n.client.pinned) mandatory.push(i);
       else pool.push(i);
     }
 
-    // Las citas pactadas forman el esqueleto del viaje, en orden cronológico.
-    anchors.sort(function (a, b) {
+    // El esqueleto son las etapas en el orden escrito: Barcelona → Madrid →
+    // Salamanca se recorre en ese orden, no en el que salga más corto.
+    etapas.sort(function (a, b) { return ctx.nodes[a].orden - ctx.nodes[b].orden; });
+    var seq = etapas.slice();
+
+    // Las citas pactadas se encajan en ese esqueleto, en orden cronológico.
+    citas.sort(function (a, b) {
       var aa = ctx.appt(a), ab = ctx.appt(b);
       var da = aa.dayIndex === null ? 0 : aa.dayIndex;
       var db = ab.dayIndex === null ? 0 : ab.dayIndex;
       return da !== db ? da - db : aa.start - ab.start;
     });
-    var seq = anchors.slice();
+    citas.forEach(function (node) {
+      var next = insertFeasible(seq, node, ctx, seq.length + 1);
+      if (next) { seq = next; return; }
+      seq.splice(bestPosition(seq, node, ctx).pos, 0, node);   // la cita entra igual
+    });
 
     mandatory.forEach(function (node) {
       var next = insertFeasible(seq, node, ctx, 10);
@@ -3001,7 +3077,7 @@ window.BTP = window.BTP || {};
    */
   function buildPlan(opts) {
     var s = opts.settings;
-    var nodes = buildNodes(opts.origin, opts.dest, opts.candidates, s);
+    var nodes = buildNodes(opts.origin, opts.stops || [], opts.candidates, s);
     var points = nodes.map(function (n) { return { lat: n.lat, lng: n.lng }; });
 
     return BTP.routing.matrix(points, s).then(function (matrix) {
@@ -3421,34 +3497,46 @@ window.BTP = window.BTP || {};
     });
   }
 
-  /** Círculo de radio o franja del corredor origen→destino. */
-  function renderZone(origin, dest, settings) {
+  /** Marca el origen y las etapas, y dibuja la zona de búsqueda. */
+  function renderZone(origin, stops, settings) {
     if (!map) return;
     layers.zone.clearLayers();
     layers.anchors.clearLayers();
+    stops = (stops || []).filter(function (e) { return e && e.lat != null; });
+
+    var letras = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    var ruta = [];
 
     if (origin && origin.lat != null) {
+      ruta.push(origin);
       L.marker([origin.lat, origin.lng], { icon: pinIcon('A', '#111827') })
         .bindPopup('<b>Origen</b><br>' + U.escapeHtml(origin.name || ''))
         .addTo(layers.anchors);
     }
-    if (dest && dest.lat != null) {
-      L.marker([dest.lat, dest.lng], { icon: pinIcon('B', '#b91c1c') })
-        .bindPopup('<b>Destino</b><br>' + U.escapeHtml(dest.name || ''))
+    stops.forEach(function (e, i) {
+      ruta.push(e);
+      var letra = letras.charAt(Math.min(i + (origin && origin.lat != null ? 1 : 0), 25));
+      L.marker([e.lat, e.lng], { icon: pinIcon(letra, '#b91c1c') })
+        .bindPopup('<b>Etapa ' + (i + 1) + '</b><br>' + U.escapeHtml(e.name || ''))
         .addTo(layers.anchors);
-    }
-    if (!dest || dest.lat == null) return;
+    });
 
-    if (settings.mode === 'corredor' && origin && origin.lat != null) {
-      var poly = corridorPolygon(origin, dest, Number(settings.corridorKm));
-      L.polygon(poly, { color: '#2563eb', weight: 1, fillOpacity: 0.06, dashArray: '4 4' }).addTo(layers.zone);
-      L.polyline([[origin.lat, origin.lng], [dest.lat, dest.lng]],
+    if (!stops.length) return;
+
+    if (settings.mode === 'corredor' && ruta.length >= 2) {
+      for (var k = 0; k < ruta.length - 1; k++) {
+        L.polygon(corridorPolygon(ruta[k], ruta[k + 1], Number(settings.corridorKm)),
+          { color: '#2563eb', weight: 1, fillOpacity: 0.06, dashArray: '4 4' }).addTo(layers.zone);
+      }
+      L.polyline(ruta.map(function (p) { return [p.lat, p.lng]; }),
         { color: '#2563eb', weight: 1, dashArray: '6 6', opacity: 0.7 }).addTo(layers.zone);
     } else {
-      L.circle([dest.lat, dest.lng], {
-        radius: Number(settings.radiusKm) * 1000,
-        color: '#2563eb', weight: 1, fillOpacity: 0.06, dashArray: '4 4'
-      }).addTo(layers.zone);
+      stops.forEach(function (e) {
+        L.circle([e.lat, e.lng], {
+          radius: Number(settings.radiusKm) * 1000,
+          color: '#2563eb', weight: 1, fillOpacity: 0.06, dashArray: '4 4'
+        }).addTo(layers.zone);
+      });
     }
   }
 
@@ -6648,7 +6736,7 @@ window.BTP = window.BTP || {};
 
   function bindForm() {
     $('#origin').value = S.originText || '';
-    $('#dest').value = S.destText || '';
+    renderStops();
 
     bindInput('startDate', 'startDate');
     bindInput('days', 'days', 'number');
@@ -6659,6 +6747,7 @@ window.BTP = window.BTP || {};
     bindInput('lunchStart', 'lunchStart');
     bindInput('returnToOrigin', 'returnToOrigin', 'check');
     bindInput('destIsStop', 'destIsStop', 'check');
+    bindInput('lockStopOrder', 'lockStopOrder', 'check');
     bindInput('filterMinPriority', 'filterMinPriority', 'number');
     bindInput('filterNotVisitedDays', 'filterNotVisitedDays', 'number');
     bindInput('filterIndustry', 'filterIndustry');
@@ -6722,14 +6811,15 @@ window.BTP = window.BTP || {};
 
     var reDraw = U.debounce(function () { resolvePoint('origin').then(drawZone); }, 900);
     $('#origin').addEventListener('change', reDraw);
-    $('#dest').addEventListener('change', U.debounce(function () {
-      resolvePoint('dest').then(function (p) {
-        drawZone();
-        if (p) BTP.map.flyTo(p.lat, p.lng, 9);
-      });
-    }, 500));
 
     $('#btn-gps').addEventListener('click', useGeolocation);
+    $('#btn-add-stop').addEventListener('click', function () {
+      S.stops.push({ text: '', lat: null, lng: null });
+      BTP.store.saveSettings();
+      renderStops();
+      var ult = $$('#stops-list input');
+      if (ult.length) ult[ult.length - 1].focus();
+    });
   }
 
   function applyTiles() {
@@ -6737,17 +6827,143 @@ window.BTP = window.BTP || {};
     BTP.map.setTiles(S);
   }
 
-  /* --- Geocodificación de origen y destino ------------------------------ */
+  /* --- Etapas del viaje -------------------------------------------------- */
+
+  /** Dibuja la lista de etapas en el panel. */
+  function renderStops() {
+    var box = $('#stops-list');
+    if (!box) return;
+    box.innerHTML = '';
+    if (!S.stops.length) {
+      S.stops.push({ text: '', lat: null, lng: null });
+      BTP.store.saveSettings();
+    }
+
+    S.stops.forEach(function (etapa, i) {
+      var input = U.el('input', {
+        type: 'text',
+        value: etapa.text || '',
+        placeholder: i === 0 ? 'Ej. Madrid' : 'Siguiente parada'
+      });
+      var estado = U.el('small', { class: 'hint' });
+      if (etapa.text && etapa.lat != null) {
+        estado.className = 'hint ok';
+        estado.textContent = '✓ ' + (etapa.label || etapa.text);
+      }
+
+      input.addEventListener('change', U.debounce(function () {
+        etapa.text = input.value.trim();
+        etapa.lat = null; etapa.lng = null;
+        BTP.store.saveSettings();
+        resolveStop(i, estado).then(function (p) {
+          drawZone();
+          if (p) BTP.map.flyTo(p.lat, p.lng, 9);
+        });
+      }, 400));
+
+      box.appendChild(U.el('div', { class: 'stop-row' }, [
+        U.el('span', { class: 'stop-num', text: String(i + 1) }),
+        U.el('div', { class: 'stop-main' }, [input, estado]),
+        U.el('button', {
+          class: 'mini', text: '↑', title: 'Subir', disabled: i === 0 ? 'disabled' : null,
+          onclick: function () { moverEtapa(i, -1); }
+        }),
+        U.el('button', {
+          class: 'mini', text: '↓', title: 'Bajar',
+          disabled: i === S.stops.length - 1 ? 'disabled' : null,
+          onclick: function () { moverEtapa(i, 1); }
+        }),
+        U.el('button', {
+          class: 'mini danger', text: '✕', title: 'Quitar etapa',
+          disabled: S.stops.length < 2 ? 'disabled' : null,
+          onclick: function () {
+            S.stops.splice(i, 1);
+            BTP.store.saveSettings();
+            renderStops();
+            drawZone();
+          }
+        })
+      ]));
+    });
+  }
+
+  function moverEtapa(i, delta) {
+    var j = i + delta;
+    if (j < 0 || j >= S.stops.length) return;
+    var tmp = S.stops[i];
+    S.stops[i] = S.stops[j];
+    S.stops[j] = tmp;
+    BTP.store.saveSettings();
+    renderStops();
+    drawZone();
+  }
+
+  /** Geocodifica una etapa concreta. */
+  function resolveStop(i, estado) {
+    var etapa = S.stops[i];
+    if (!etapa) return Promise.resolve(null);
+    var text = (etapa.text || '').trim();
+    if (!text) {
+      etapa.lat = null; etapa.lng = null;
+      BTP.store.saveSettings();
+      if (estado) { estado.className = 'hint'; estado.textContent = ''; }
+      return Promise.resolve(null);
+    }
+    if (etapa.lat != null) return Promise.resolve({ name: text, lat: etapa.lat, lng: etapa.lng });
+
+    var directo = /^\s*(-?\d{1,2}(?:[.,]\d+)?)\s*[,;]\s*(-?\d{1,3}(?:[.,]\d+)?)\s*$/.exec(text);
+    if (directo) {
+      etapa.lat = parseFloat(directo[1].replace(',', '.'));
+      etapa.lng = parseFloat(directo[2].replace(',', '.'));
+      BTP.store.saveSettings();
+      if (estado) { estado.className = 'hint ok'; estado.textContent = '✓ Coordenadas'; }
+      return Promise.resolve({ name: text, lat: etapa.lat, lng: etapa.lng });
+    }
+
+    if (estado) { estado.className = 'hint'; estado.textContent = 'Buscando…'; }
+    return BTP.geocode.geocodeStrict(text).then(function (hit) {
+      if (!hit) {
+        if (estado) { estado.className = 'hint warn'; estado.textContent = '⚠ No encontrada'; }
+        return null;
+      }
+      etapa.lat = hit.lat; etapa.lng = hit.lng;
+      etapa.label = hit.label.split(',').slice(0, 2).join(',');
+      BTP.store.saveSettings();
+      if (estado) { estado.className = 'hint ok'; estado.textContent = '✓ ' + etapa.label; }
+      return { name: text, lat: hit.lat, lng: hit.lng };
+    }).catch(function () {
+      if (estado) {
+        estado.className = 'hint warn';
+        estado.textContent = '⚠ Sin conexión con el buscador. Puedes poner «40.41, -3.70».';
+      }
+      return null;
+    });
+  }
+
+  /** Resuelve todas las etapas, una tras otra (Nominatim va a 1 por segundo). */
+  function resolveAllStops() {
+    var estados = $$('#stops-list .hint');
+    return S.stops.reduce(function (cadena, _, i) {
+      return cadena.then(function (acc) {
+        return resolveStop(i, estados[i]).then(function (p) {
+          if (p) acc.push(p);
+          return acc;
+        });
+      });
+    }, Promise.resolve([]));
+  }
+
+  /* --- Geocodificación del origen --------------------------------------- */
 
   function point(kind) {
     var lat = S[kind + 'Lat'], lng = S[kind + 'Lng'];
     if (lat == null || lng == null) return null;
-    return { name: S[kind + 'Text'] || (kind === 'origin' ? 'Origen' : 'Destino'), lat: lat, lng: lng };
+    return { name: S[kind + 'Text'] || 'Origen', lat: lat, lng: lng };
   }
 
   function resolvePoint(kind) {
-    var input = $('#' + (kind === 'origin' ? 'origin' : 'dest'));
-    var status = $('#' + (kind === 'origin' ? 'origin' : 'dest') + '-status');
+    var input = $('#' + kind);
+    var status = $('#' + kind + '-status');
     var text = input.value.trim();
     if (!text) {
       S[kind + 'Text'] = ''; S[kind + 'Lat'] = null; S[kind + 'Lng'] = null;
@@ -6827,7 +7043,7 @@ window.BTP = window.BTP || {};
   }
 
   function drawZone() {
-    BTP.map.renderZone(point('origin'), point('dest'), S);
+    BTP.map.renderZone(point('origin'), BTP.store.resolvedStops(), S);
   }
 
   function refreshAll() {
@@ -7084,21 +7300,22 @@ window.BTP = window.BTP || {};
     btn.textContent = 'Calculando…';
     topStatus('Preparando el viaje…');
 
-    Promise.all([resolvePoint('origin'), resolvePoint('dest')]).then(function (pts) {
-      var origin = pts[0], dest = pts[1];
+    resolvePoint('origin').then(function (origin) {
       if (!origin) throw new Error('Indica tu punto de partida.');
-      if (!dest) throw new Error('Indica el destino del viaje.');
-      if (!S.startDate) { S.startDate = U.todayISO(); $('#startDate').value = S.startDate; }
+      return resolveAllStops().then(function (stops) {
+        if (!stops.length) throw new Error('Indica al menos una etapa del viaje.');
+        if (!S.startDate) { S.startDate = U.todayISO(); $('#startDate').value = S.startDate; }
 
-      drawZone();
-      var sel = BTP.optimize.selectCandidates(BTP.store.state.clients, S, origin, dest);
-      showCandidateSummary(sel);
-      if (!sel.candidates.length) {
-        throw new Error('Ningún cliente cumple los filtros dentro de la zona. Amplía el radio o revisa los filtros.');
-      }
-      topStatus('Calculando tiempos de ruta entre ' + (sel.candidates.length + 2) + ' puntos…');
-      return BTP.optimize.buildPlan({
-        origin: origin, dest: dest, candidates: sel.candidates, settings: S
+        drawZone();
+        var sel = BTP.optimize.selectCandidates(BTP.store.state.clients, S, origin, stops);
+        showCandidateSummary(sel);
+        if (!sel.candidates.length) {
+          throw new Error('Ningún cliente cumple los filtros dentro de la zona. Amplía el radio o revisa los filtros.');
+        }
+        topStatus('Calculando tiempos de ruta entre ' + (sel.candidates.length + stops.length + 1) + ' puntos…');
+        return BTP.optimize.buildPlan({
+          origin: origin, stops: stops, candidates: sel.candidates, settings: S
+        });
       });
     }).then(function (p) {
       plan = p;

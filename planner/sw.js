@@ -2,7 +2,7 @@
    Los ficheros propios se sirven desde la caché; las teselas y los servicios
    externos se piden a la red y nunca bloquean el arranque. */
 
-var VERSION = 'v20';
+var VERSION = 'v21';
 var CACHE = 'planificador-' + VERSION;
 
 var SHELL = [
